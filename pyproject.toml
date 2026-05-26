@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zoho-video-renamer"
-version = "0.1.0"
+version = "0.1.1"
 description = "Match videos to source stills, propose descriptive names (via AI or existing still names), and bulk-rename — with a browser review UI and full undo support."
 readme = "README.md"
 license = { text = "MIT" }

@@ -379,6 +379,53 @@ pip install <span class="accent">zoho-video-renamer[openai]</span>
 <span class="comment"># or both</span>
 pip install <span class="accent">zoho-video-renamer[all]</span></pre>
     </div>
+
+    <!-- ──────────── Security / Gatekeeper bypass section ──────────── -->
+    <div style="margin-top: 48px; padding: 28px; background: var(--panel); border: 1px solid var(--warn); border-radius: 12px;">
+      <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--warn);">⚠ First launch — you'll see a security warning</h3>
+      <p style="color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 18px;">
+        The app is <strong>not code-signed</strong> (Apple Developer ID and Microsoft EV cert cost hundreds per year, and this is a free OSS tool). That means your OS will refuse to open it on first launch. Here's how to allow it — takes 10 seconds. Subsequent launches work normally.
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+        <!-- macOS -->
+        <div style="background: var(--bg2); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+          <h4 style="margin: 0 0 10px; font-size: 15px;">🍎 macOS</h4>
+          <p style="color: var(--muted); font-size: 13px; margin-bottom: 12px;">When you see <em>"ZohoVideoRenamer can't be opened because Apple cannot check it for malicious software"</em>:</p>
+          <ol style="color: var(--text); font-size: 13px; line-height: 1.7; padding-left: 18px; margin: 0;">
+            <li>Click <strong>Done</strong> on the warning</li>
+            <li>Open <strong>System Settings</strong> → <strong>Privacy &amp; Security</strong></li>
+            <li>Scroll down — you'll see <em>"ZohoVideoRenamer was blocked from use"</em></li>
+            <li>Click <strong>Open Anyway</strong> next to it</li>
+            <li>Re-launch the app — it'll open normally from now on</li>
+          </ol>
+          <p style="color: var(--muted); font-size: 12px; margin-top: 12px;">
+            <strong>Faster alternative:</strong> In Finder, <code>right-click</code> the app → <strong>Open</strong> → <strong>Open</strong> on the confirmation dialog. Done.
+          </p>
+          <p style="color: var(--muted); font-size: 12px; margin-top: 8px;">
+            <strong>Power-user one-liner:</strong> <code>xattr -dr com.apple.quarantine /Applications/ZohoVideoRenamer.app</code>
+          </p>
+        </div>
+
+        <!-- Windows -->
+        <div style="background: var(--bg2); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+          <h4 style="margin: 0 0 10px; font-size: 15px;">🪟 Windows</h4>
+          <p style="color: var(--muted); font-size: 13px; margin-bottom: 12px;">When you see the blue <em>"Windows protected your PC"</em> SmartScreen dialog:</p>
+          <ol style="color: var(--text); font-size: 13px; line-height: 1.7; padding-left: 18px; margin: 0;">
+            <li>Click <strong>More info</strong> (small link in the dialog)</li>
+            <li>Click the <strong>Run anyway</strong> button that appears</li>
+            <li>The app opens — Windows will remember your decision</li>
+          </ol>
+          <p style="color: var(--muted); font-size: 12px; margin-top: 12px;">
+            <strong>Or:</strong> Right-click the <code>.exe</code> → <strong>Properties</strong> → check <strong>Unblock</strong> at the bottom → <strong>OK</strong> → double-click as normal.
+          </p>
+        </div>
+      </div>
+
+      <p style="color: var(--muted); font-size: 12px; margin-top: 18px; text-align: center;">
+        These warnings appear because the binary isn't signed by Apple/Microsoft, not because anything is wrong with the code. The source is fully auditable at <a href="https://github.com/princezoho/ZohoVideoRenamer" target="_blank" rel="noopener">github.com/princezoho/ZohoVideoRenamer</a>.
+      </p>
+    </div>
   </div>
 </section>
 

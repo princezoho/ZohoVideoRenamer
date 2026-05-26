@@ -47,12 +47,31 @@ jobs:
       - name: Build with PyInstaller (macOS)
         if: matrix.os == 'macos-latest'
         run: |
+          # --collect-all tkinter pulls in tcl/tk runtime files that PyInstaller
+          # otherwise misses, which is the usual cause of "app crashes immediately
+          # on launch" for tkinter GUIs bundled on macOS.
           pyinstaller --noconfirm --windowed --onedir \
             --name ZohoVideoRenamer \
             --icon docs/assets/logo.icns \
+            --osx-bundle-identifier com.princezoho.zohovideorenamer \
+            --collect-all tkinter \
             --collect-all anthropic \
             --collect-all openai \
+            --hidden-import tkinter \
+            --hidden-import tkinter.ttk \
+            --hidden-import tkinter.filedialog \
+            --hidden-import tkinter.messagebox \
+            --hidden-import _tkinter \
             zoho_video_renamer/gui.py
+
+          # Sanity check: app bundle was actually built and CLI runs
+          ls -la dist/
+          if [ -d dist/ZohoVideoRenamer.app ]; then
+            echo "✓ .app bundle exists"
+            # Run the bundled executable headlessly for ~2 seconds to surface import errors
+            # (it will fail to open a window but should print import errors if any)
+            timeout 3s "dist/ZohoVideoRenamer.app/Contents/MacOS/ZohoVideoRenamer" 2>&1 | head -40 || true
+          fi
 
       - name: Build with PyInstaller (Windows)
         if: matrix.os == 'windows-latest'
@@ -60,16 +79,25 @@ jobs:
           pyinstaller --noconfirm --windowed --onefile `
             --name ZohoVideoRenamer `
             --icon docs/assets/favicon.ico `
+            --collect-all tkinter `
             --collect-all anthropic `
             --collect-all openai `
+            --hidden-import tkinter `
+            --hidden-import tkinter.ttk `
+            --hidden-import tkinter.filedialog `
+            --hidden-import tkinter.messagebox `
+            --hidden-import _tkinter `
             zoho_video_renamer/gui.py
 
       - name: Package macOS app into .dmg
         if: matrix.os == 'macos-latest'
         run: |
           cd dist
-          # If we built a .app bundle, package it
           if [ -d ZohoVideoRenamer.app ]; then
+            # Strip the quarantine attribute so users don't get a Gatekeeper warning
+            # when downloading the DMG. (Unsigned apps still trigger the warning on
+            # first launch — see the landing page security note.)
+            xattr -dr com.apple.quarantine ZohoVideoRenamer.app 2>/dev/null || true
             hdiutil create -volname "ZohoVideoRenamer" -srcfolder ZohoVideoRenamer.app -ov -format UDZO ZohoVideoRenamer.dmg
           else
             # onedir output: zip the folder
