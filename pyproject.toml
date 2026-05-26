@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zoho-video-renamer"
+version = "0.1.0"
+description = "Match videos to source stills, propose descriptive names (via AI or existing still names), and bulk-rename — with a browser review UI and full undo support."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [
+    { name = "ZohoVideoRenamer contributors" }
+]
+keywords = ["video", "rename", "ffmpeg", "ai", "vision", "batch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "Pillow>=9.0",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40.0"]
+openai = ["openai>=1.50.0"]
+all = ["anthropic>=0.40.0", "openai>=1.50.0"]
+
+[project.urls]
+Homepage = "https://github.com/princezoho/ZohoVideoRenamer"
+Issues = "https://github.com/princezoho/ZohoVideoRenamer/issues"
+
+[project.scripts]
+zoho-video-renamer = "zoho_video_renamer.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["zoho_video_renamer*"]
