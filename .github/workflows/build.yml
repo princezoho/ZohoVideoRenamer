@@ -72,7 +72,8 @@ jobs:
             --hidden-import tkinter.filedialog \
             --hidden-import tkinter.messagebox \
             --hidden-import _tkinter \
-            zoho_video_renamer/gui.py
+            --collect-submodules zoho_video_renamer \
+            launcher.py
 
           ls -la dist/
           if [ -d dist/ZohoVideoRenamer.app ]; then
@@ -97,7 +98,8 @@ jobs:
             --hidden-import tkinter.filedialog `
             --hidden-import tkinter.messagebox `
             --hidden-import _tkinter `
-            zoho_video_renamer/gui.py
+            --collect-submodules zoho_video_renamer `
+            launcher.py
 
       - name: Package macOS app into .dmg
         if: startsWith(matrix.os, 'macos')
