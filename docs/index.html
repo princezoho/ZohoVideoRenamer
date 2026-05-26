@@ -392,14 +392,18 @@ pip install <span class="accent">zoho-video-renamer[all]</span></pre>
         <div style="background: var(--bg2); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
           <h4 style="margin: 0 0 10px; font-size: 15px;">🍎 macOS</h4>
           <p style="color: var(--muted); font-size: 13px; margin-bottom: 12px;">When you see <em>"ZohoVideoRenamer can't be opened because Apple cannot check it for malicious software"</em>:</p>
-          <ol style="color: var(--text); font-size: 13px; line-height: 1.7; padding-left: 18px; margin: 0;">
-            <li>Click <strong>Done</strong> on the warning</li>
-            <li>Open <strong>System Settings</strong> → <strong>Privacy &amp; Security</strong></li>
-            <li>Scroll down — you'll see <em>"ZohoVideoRenamer was blocked from use"</em></li>
-            <li>Click <strong>Open Anyway</strong> next to it</li>
-            <li>Re-launch the app — it'll open normally from now on</li>
-          </ol>
-          <p style="color: var(--muted); font-size: 12px; margin-top: 12px;">
+          <div style="display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start;">
+            <ol style="color: var(--text); font-size: 13px; line-height: 1.7; padding-left: 18px; margin: 0;">
+              <li>Click <strong>Done</strong> on the warning</li>
+              <li>Open <strong>System Settings</strong> → <strong>Privacy &amp; Security</strong></li>
+              <li>Scroll down to the <strong>Security</strong> section — you'll see <em>"ZohoVideoRenamer.app was blocked to protect your Mac"</em></li>
+              <li>Click <strong>Open Anyway</strong> on the right (see arrow →)</li>
+              <li>Re-launch the app — it'll open normally from now on</li>
+            </ol>
+            <img src="assets/macos-security-allow-small.png" alt="macOS Privacy & Security screen showing the Open Anyway button next to a blocked ZohoVideoRenamer.app entry"
+                 style="width: 180px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+          </div>
+          <p style="color: var(--muted); font-size: 12px; margin-top: 16px;">
             <strong>Faster alternative:</strong> In Finder, <code>right-click</code> the app → <strong>Open</strong> → <strong>Open</strong> on the confirmation dialog. Done.
           </p>
           <p style="color: var(--muted); font-size: 12px; margin-top: 8px;">
