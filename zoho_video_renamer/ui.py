@@ -383,8 +383,8 @@ function render() {
     const included = includedFilenames.has(v.filename);
     const includedIdx = included ? includedOnly.indexOf(v) : -1;
     const vSuffix = !included
-      ? '(excluded — won\\'t be renamed)'
-      : (includedOnly.length > 1 ? `-v${includedIdx+1}` : '(no suffix)');
+      ? "(excluded — will not be renamed)"
+      : (includedOnly.length > 1 ? `-v${includedIdx+1}` : "(no suffix)");
     const safeFilename = v.filename.replace(/'/g,"\\\\'").replace(/"/g,'&quot;');
     videoCards += `
       <div class="video-card ${included ? '' : 'excluded'}" onclick="toggleVideo('${entry.id}', '${safeFilename}', event)" title="${included ? 'Click to exclude this video' : 'Click to include this video'}">

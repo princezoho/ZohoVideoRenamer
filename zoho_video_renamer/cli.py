@@ -196,6 +196,9 @@ def cmd_scan(args: argparse.Namespace) -> int:
             # Record the 3 frame paths in the entry for the ai-name step
             e["_video_frames"] = {k: os.path.relpath(p, out_dir) for k, p in frames.items()}
         info(f"  Frames extracted for {three_ok}/{len(dataset['entries'])} videos")
+        # Re-save matches.json now that still_thumb + _video_frames are populated
+        with open(matches_path, "w") as f:
+            json.dump(dataset, f, indent=2, default=str)
     else:
         info(_c("Generating still thumbnails...", "bold"))
         still_tasks = []

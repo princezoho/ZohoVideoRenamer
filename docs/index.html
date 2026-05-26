@@ -214,6 +214,78 @@
   </div>
 </section>
 
+<section id="modes" class="section">
+  <div class="container">
+    <div class="eyebrow">Two modes</div>
+    <h2>Pick the workflow that fits your files.</h2>
+    <p class="desc">Same review UI, same bulk-rename pipeline, same undo log. The only difference is what the AI looks at to propose names.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:24px;">
+
+      <!-- Match mode -->
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <span style="background:var(--accent-soft);color:var(--accent);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">Mode 1</span>
+          <h3 style="margin:0;font-size:18px;font-weight:700;">Match mode</h3>
+        </div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:14px;">
+          You have <strong>both</strong> a folder of source stills and a folder of generated videos. The tool matches each video to its source still by filename substring, then names everything based on the still's content.
+        </p>
+        <p style="color:var(--muted);font-size:13px;line-height:1.55;margin:0;">
+          <strong style="color:var(--text);">When to use it:</strong> Output from AI video generators like Runway / Pika / Luma where the source-still filename is embedded in the video filename. Typical match rate is 90 %+ on the first try.
+        </p>
+      </div>
+
+      <!-- Catalog mode -->
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <span style="background:rgba(110,192,119,0.14);color:var(--good);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">Mode 2 · new in v0.1.8</span>
+          <h3 style="margin:0;font-size:18px;font-weight:700;">Catalog mode</h3>
+        </div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:14px;">
+          You have <strong>only videos</strong> — random-named clips from a phone, drone, screen capture, etc. The tool extracts three frames per video (start / middle / end) and the AI looks at all three to propose one descriptive 3-word name per clip.
+        </p>
+        <p style="color:var(--muted);font-size:13px;line-height:1.55;margin:0;">
+          <strong style="color:var(--text);">When to use it:</strong> Folders of <code>IMG_0234.mp4</code>, <code>DJI_0089.mp4</code>, <code>GH010012.mp4</code> with no source stills. Toggle the <em>"Videos only"</em> checkbox in the app and pick just the videos folder.
+        </p>
+      </div>
+    </div>
+
+    <!-- Catalog mode screenshot -->
+    <div style="margin-top:32px;">
+      <h3 style="font-size:15px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Catalog mode — the review UI</h3>
+      <div class="screenshot-frame" style="max-width:1000px;">
+        <div class="traffic"><span></span><span></span><span></span></div>
+        <img src="screenshots/videos-only-entry.png" alt="Videos-only catalog mode review UI showing IMG_0235.mp4 with an AI-proposed name 'desert-cactus-silhouettes' based on the mid-frame extracted from the video">
+      </div>
+      <p style="text-align:center;color:var(--muted);font-size:13px;margin-top:14px;">
+        Random-named videos in the sidebar (<code>IMG_0234.mp4</code>, <code>MOV_4471.mp4</code>, …), AI-proposed names in the form field, click-to-exclude on each card, identical review flow to Match mode.
+      </p>
+    </div>
+
+    <!-- Apply operation options -->
+    <div style="margin-top:40px;padding:24px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);">
+      <h3 style="margin:0 0 10px;font-size:16px;font-weight:700;">Three ways to apply the renames</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px;">When you commit, pick how the tool touches your files:</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+        <div style="background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Rename in place</div>
+          <div style="color:var(--muted);font-size:12px;line-height:1.5;">Default. Originals stay where they are, just with new names. Reversible via undo log.</div>
+        </div>
+        <div style="background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Copy to new folder</div>
+          <div style="color:var(--muted);font-size:12px;line-height:1.5;">Safest. Originals untouched; renamed copies land in the output folder.</div>
+        </div>
+        <div style="background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Move to new folder</div>
+          <div style="color:var(--muted);font-size:12px;line-height:1.5;">Cleans up the source folder. Works across filesystems unlike pure rename.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
 <section id="how" class="section">
   <div class="container">
     <div class="eyebrow">How it works</div>
