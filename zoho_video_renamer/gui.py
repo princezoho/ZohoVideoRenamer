@@ -36,8 +36,71 @@ PANEL2 = "#2e2e35"
 TEXT = "#e8e8ec"
 MUTED = "#9a9aa6"
 ACCENT = "#d8a14a"
+ACCENT_HOVER = "#e6b35a"
 GOOD = "#6ec077"
 BAD = "#d97a6c"
+
+
+class FlatButton(tk.Frame):
+    """A button rendered as a colored Frame+Label rather than tk.Button.
+
+    Native tk.Button on macOS ignores `bg` and `fg` (it always uses the system
+    AppKit button styling), which makes our custom-themed colors invisible.
+    This widget bypasses that by using a tk.Label inside a tk.Frame and binding
+    click events manually — colors render exactly as specified.
+    """
+    def __init__(self, parent, text, command, *, bg=ACCENT, fg="#1a1a1d",
+                 hover_bg=None, padx=18, pady=10, font=("-apple-system", 13, "bold")):
+        super().__init__(parent, bg=bg, cursor="hand2", highlightthickness=0)
+        self._bg = bg
+        self._hover_bg = hover_bg or self._lighten(bg)
+        self._command = command
+        self._enabled = True
+        self.label = tk.Label(self, text=text, bg=bg, fg=fg, font=font,
+                              padx=padx, pady=pady, cursor="hand2")
+        self.label.pack()
+        for w in (self, self.label):
+            w.bind("<Button-1>", self._on_click)
+            w.bind("<Enter>", self._on_enter)
+            w.bind("<Leave>", self._on_leave)
+
+    @staticmethod
+    def _lighten(hex_color):
+        """Quick-and-dirty lighten by ~10%."""
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        r = min(255, int(r + (255 - r) * 0.12))
+        g = min(255, int(g + (255 - g) * 0.12))
+        b = min(255, int(b + (255 - b) * 0.12))
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def _on_click(self, _event):
+        if self._enabled and self._command:
+            self._command()
+
+    def _on_enter(self, _event):
+        if self._enabled:
+            self.configure(bg=self._hover_bg)
+            self.label.configure(bg=self._hover_bg)
+
+    def _on_leave(self, _event):
+        if self._enabled:
+            self.configure(bg=self._bg)
+            self.label.configure(bg=self._bg)
+
+    def configure_state(self, enabled: bool, text: str = None):
+        self._enabled = enabled
+        if text is not None:
+            self.label.configure(text=text)
+        # Dim when disabled
+        if enabled:
+            self.configure(bg=self._bg)
+            self.label.configure(bg=self._bg, fg="#1a1a1d", cursor="hand2")
+            self.configure(cursor="hand2")
+        else:
+            dim = "#5a5a60"
+            self.configure(bg=dim, cursor="arrow")
+            self.label.configure(bg=dim, fg="#aaaaaa", cursor="arrow")
 
 
 class App:
@@ -118,15 +181,13 @@ class App:
         # Action row
         action_row = tk.Frame(self.root, bg=BG)
         action_row.pack(fill="x", padx=20, pady=12)
-        self.start_btn = tk.Button(action_row, text="▶  Scan + Generate Review",
-                                    command=self._start, bg=ACCENT, fg="#1a1a1d",
-                                    font=("-apple-system", 13, "bold"),
-                                    activebackground=GOOD, bd=0, padx=18, pady=10,
-                                    cursor="hand2")
+        self.start_btn = FlatButton(action_row, text="▶  Scan + Generate Review",
+                                     command=self._start, bg=ACCENT, fg="#1a1a1d")
         self.start_btn.pack(side="left")
-        tk.Button(action_row, text="Open last review",
-                  command=self._open_review, bg=PANEL2, fg=TEXT, bd=0,
-                  padx=12, pady=10, cursor="hand2").pack(side="left", padx=8)
+        FlatButton(action_row, text="Open last review",
+                    command=self._open_review, bg=PANEL2, fg=TEXT,
+                    padx=14, pady=10, font=("-apple-system", 12, "bold")
+                    ).pack(side="left", padx=8)
 
         # Log area
         tk.Label(self.root, text="Log:", bg=BG, fg=MUTED,
@@ -150,9 +211,11 @@ class App:
         e = tk.Entry(row, textvariable=var, bg=PANEL2, fg=TEXT, insertbackground=TEXT,
                      bd=1, relief="solid")
         e.pack(side="left", fill="x", expand=True)
-        tk.Button(row, text="Browse…",
-                   command=lambda: self._pick(var),
-                   bg=PANEL, fg=TEXT, bd=0, padx=10, pady=2, cursor="hand2").pack(side="left", padx=4)
+        FlatButton(row, text="Browse…",
+                    command=lambda: self._pick(var),
+                    bg=PANEL2, fg=TEXT,
+                    padx=14, pady=4, font=("-apple-system", 11, "bold")
+                    ).pack(side="left", padx=4)
         tk.Label(outer, text=hint, bg=BG, fg=MUTED, font=("-apple-system", 10),
                  anchor="w").pack(anchor="w")
 
@@ -201,7 +264,7 @@ class App:
             messagebox.showerror("Missing folder", "Pick an output folder.")
             return
 
-        self.start_btn.configure(state="disabled", text="Working…")
+        self.start_btn.configure_state(False, text="Working…")
         t = threading.Thread(target=self._run, args=(stills, videos, out), daemon=True)
         t.start()
 
@@ -307,7 +370,7 @@ class App:
             import traceback
             self._log(traceback.format_exc())
         finally:
-            self.root.after(0, lambda: self.start_btn.configure(state="normal", text="▶  Scan + Generate Review"))
+            self.root.after(0, lambda: self.start_btn.configure_state(True, text="▶  Scan + Generate Review"))
 
     def _open_review(self):
         html_path = os.path.join(self.output_dir.get(), "index.html")
