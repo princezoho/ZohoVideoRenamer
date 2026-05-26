@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ZohoVideoRenamer — Match AI-generated videos to their source stills, automatically</title>
 <meta name="description" content="Open-source tool for bulk-renaming AI-generated videos. Matches videos to source stills, proposes descriptive names with vision AI, lets you review in a browser, then bulk-renames with full undo support.">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/logo-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/logo-16.png">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/logo-256.png">
+<meta property="og:title" content="ZohoVideoRenamer">
+<meta property="og:description" content="Bulk-rename AI-generated videos by matching them to source stills. Open source, BYO API key.">
+<meta property="og:image" content="assets/logo-512.png">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -50,7 +58,9 @@
   nav .inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px;
                max-width: var(--maxw); margin: 0 auto; }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--text); }
-  .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .logo img { width: 28px; height: 28px; border-radius: 6px; }
+  .hero-logo { width: 96px; height: 96px; border-radius: 18px; margin: 0 auto 24px; display: block;
+              box-shadow: 0 8px 28px -4px rgba(243, 149, 33, 0.4); }
   .nav-links { display: flex; gap: 24px; align-items: center; }
   .nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; }
   .nav-links a:hover { color: var(--text); }
@@ -157,7 +167,7 @@
 
 <nav>
   <div class="inner">
-    <div class="logo"><span class="dot"></span> ZohoVideoRenamer</div>
+    <div class="logo"><img src="assets/logo-64.png" alt="ZohoVideoRenamer"> ZohoVideoRenamer</div>
     <div class="nav-links">
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
@@ -169,6 +179,7 @@
 </nav>
 
 <header class="hero container">
+  <img class="hero-logo" src="assets/logo-256.png" alt="ZohoVideoRenamer mascot">
   <span class="badge">Open Source · Bring Your Own AI Key</span>
   <h1>Rename hundreds of AI-generated videos<br>in minutes, not hours.</h1>
   <p class="sub">

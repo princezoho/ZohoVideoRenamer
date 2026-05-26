@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="docs/assets/logo-256.png" alt="ZohoVideoRenamer logo" width="128" height="128">
+</p>
+
 # ZohoVideoRenamer
 
-**🌐 [zohovideorenamer landing page](https://princezoho.github.io/ZohoVideoRenamer/) · 💾 [Latest release](https://github.com/princezoho/ZohoVideoRenamer/releases/latest) · 📦 [Install via pip](#install)**
+**🌐 [Landing page](https://princezoho.github.io/ZohoVideoRenamer/) · 💾 [Latest release](https://github.com/princezoho/ZohoVideoRenamer/releases/latest) · 📦 [Install via pip](#install)**
 
 Match a folder of **videos** to a folder of **source stills**, propose descriptive names (from the still's existing filename OR via an AI vision API), review every pairing in a browser UI, and bulk-rename everything with a full undo log.
 

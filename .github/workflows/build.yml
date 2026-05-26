@@ -49,11 +49,9 @@ jobs:
         run: |
           pyinstaller --noconfirm --windowed --onedir \
             --name ZohoVideoRenamer \
+            --icon docs/assets/logo.icns \
             --collect-all anthropic \
             --collect-all openai \
-            -i docs/screenshots/01-review-main.png \
-            zoho_video_renamer/gui.py || pyinstaller --noconfirm --windowed --onedir \
-            --name ZohoVideoRenamer \
             zoho_video_renamer/gui.py
 
       - name: Build with PyInstaller (Windows)
@@ -61,6 +59,9 @@ jobs:
         run: |
           pyinstaller --noconfirm --windowed --onefile `
             --name ZohoVideoRenamer `
+            --icon docs/assets/favicon.ico `
+            --collect-all anthropic `
+            --collect-all openai `
             zoho_video_renamer/gui.py
 
       - name: Package macOS app into .dmg
