@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZohoVideoRenamer — Match AI-generated videos to their source stills, automatically</title>
+<meta name="description" content="Open-source tool for bulk-renaming AI-generated videos. Matches videos to source stills, proposes descriptive names with vision AI, lets you review in a browser, then bulk-renames with full undo support.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f12;
+    --bg2: #16161b;
+    --panel: #1c1c22;
+    --panel2: #25252d;
+    --border: #2e2e38;
+    --text: #ecedf2;
+    --muted: #9396a3;
+    --accent: #e6b35a;
+    --accent-soft: rgba(230, 179, 90, 0.12);
+    --good: #6ec077;
+    --skip: #6a8bcc;
+    --bad: #d97a6c;
+    --warn: #d4b04a;
+    --radius: 12px;
+    --maxw: 1180px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+  a { color: var(--accent); text-decoration: none; transition: opacity 0.15s; }
+  a:hover { opacity: 0.85; }
+  img { max-width: 100%; display: block; }
+
+  .container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  nav { position: sticky; top: 0; z-index: 50; background: rgba(15, 15, 18, 0.85);
+        backdrop-filter: saturate(180%) blur(10px); border-bottom: 1px solid var(--border); }
+  nav .inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px;
+               max-width: var(--maxw); margin: 0 auto; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--text); }
+  .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .nav-links { display: flex; gap: 24px; align-items: center; }
+  .nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-links .gh-btn { color: var(--text); background: var(--panel); padding: 7px 14px; border-radius: 7px;
+                       border: 1px solid var(--border); font-size: 13px; }
+  .nav-links .gh-btn:hover { background: var(--panel2); opacity: 1; }
+
+  /* Hero */
+  .hero { padding: 80px 0 60px; text-align: center; }
+  .hero .badge { display: inline-block; padding: 6px 12px; background: var(--accent-soft);
+                 color: var(--accent); font-size: 12px; font-weight: 600; border-radius: 999px;
+                 letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 20px; }
+  .hero h1 { font-size: clamp(2.2rem, 5vw, 4rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 20px;
+             background: linear-gradient(180deg, #ffffff 0%, #bdbec5 100%);
+             -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .sub { font-size: clamp(1rem, 1.7vw, 1.25rem); color: var(--muted); max-width: 700px;
+               margin: 0 auto 36px; line-height: 1.55; }
+  .hero .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 8px;
+         font-weight: 600; font-size: 15px; border: none; cursor: pointer; transition: transform 0.05s, filter 0.15s;
+         font-family: inherit; text-decoration: none; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: #1a1a1d; }
+  .btn-secondary { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost { background: transparent; color: var(--muted); }
+  .btn svg { width: 18px; height: 18px; }
+
+  /* Screenshot showcase */
+  .showcase { padding: 24px 0 60px; }
+  .screenshot-frame {
+    background: linear-gradient(135deg, #2e2e38 0%, #1c1c22 100%);
+    border-radius: 14px; padding: 6px; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7),
+                                                    0 0 0 1px rgba(255, 255, 255, 0.04);
+    max-width: 1100px; margin: 0 auto;
+  }
+  .screenshot-frame img { border-radius: 8px; display: block; width: 100%; }
+  .traffic { display: flex; gap: 6px; padding: 8px 12px; }
+  .traffic span { width: 12px; height: 12px; border-radius: 50%; background: #4a4a52; }
+
+  /* Section heading */
+  .section { padding: 80px 0; border-top: 1px solid var(--border); }
+  .section .eyebrow { color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
+                     text-transform: uppercase; margin-bottom: 12px; }
+  .section h2 { font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 700; line-height: 1.15;
+                letter-spacing: -0.01em; margin-bottom: 14px; }
+  .section .desc { color: var(--muted); font-size: 17px; max-width: 720px; line-height: 1.6; margin-bottom: 40px; }
+
+  /* How it works */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+  .step { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; position: relative; }
+  .step .num { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent);
+               background: var(--accent-soft); padding: 4px 10px; border-radius: 999px; display: inline-block; margin-bottom: 14px; }
+  .step h3 { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .step p { color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+  /* Features */
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .feature { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .feature .icon { width: 36px; height: 36px; background: var(--accent-soft); color: var(--accent);
+                   border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+                   font-size: 18px; font-weight: 700; }
+  .feature h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .feature p { color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+  /* Side-by-side */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+  @media (max-width: 880px) { .split { grid-template-columns: 1fr; } }
+  .split .image { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px; }
+  .split .image img { border-radius: 8px; }
+
+  /* Download cards */
+  .downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .dl-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .dl-card .os { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .dl-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .dl-card p { color: var(--muted); font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+  .dl-card .btn { width: 100%; justify-content: center; }
+  .dl-card.coming-soon { opacity: 0.6; }
+
+  /* Code blocks */
+  pre.code { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+             padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6;
+             color: var(--text); margin: 12px 0; }
+  pre.code .comment { color: var(--muted); }
+  pre.code .accent { color: var(--accent); }
+
+  /* FAQ */
+  details.faq { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
+  details.faq summary { padding: 16px 20px; font-weight: 600; cursor: pointer; list-style: none; display: flex;
+                       justify-content: space-between; align-items: center; user-select: none; }
+  details.faq summary::after { content: '+'; color: var(--accent); font-size: 22px; line-height: 1; transition: transform 0.15s; }
+  details.faq[open] summary::after { transform: rotate(45deg); }
+  details.faq .body { padding: 0 20px 18px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  details.faq .body code { background: var(--bg2); padding: 1px 6px; border-radius: 3px; font-size: 12px; color: var(--text); }
+
+  /* Footer */
+  footer { padding: 50px 0 30px; border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 13px; }
+  footer a { color: var(--accent); }
+  footer .meta { margin-top: 10px; opacity: 0.7; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="inner">
+    <div class="logo"><span class="dot"></span> ZohoVideoRenamer</div>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="#faq">FAQ</a>
+      <a class="gh-btn" href="https://github.com/princezoho/ZohoVideoRenamer" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero container">
+  <span class="badge">Open Source · Bring Your Own AI Key</span>
+  <h1>Rename hundreds of AI-generated videos<br>in minutes, not hours.</h1>
+  <p class="sub">
+    Match your AI-rendered videos to their source stills automatically, propose descriptive names with vision AI,
+    review every pairing in a browser, then bulk-rename with full undo.
+  </p>
+  <div class="ctas">
+    <a href="#download" class="btn btn-primary">↓ Download app</a>
+    <a href="https://github.com/princezoho/ZohoVideoRenamer" class="btn btn-secondary" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.6.5.5 5.6.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9 0-6.4-5.1-11.5-11.5-11.5z"/></svg>
+      View source
+    </a>
+  </div>
+</header>
+
+<section class="showcase container">
+  <div class="screenshot-frame">
+    <div class="traffic"><span></span><span></span><span></span></div>
+    <img src="screenshots/03-three-videos.png" alt="ZohoVideoRenamer review UI — still on the left, three matched videos on the right, name input below, rename preview, approve/skip/flag controls">
+  </div>
+</section>
+
+<section id="problem" class="section">
+  <div class="container">
+    <div class="eyebrow">The problem</div>
+    <h2>AI video tools spit out filenames like<br><code style="font-size:0.85em;color:var(--muted);">Gen-3 Alpha Turbo 1019957322, zoom out, pan out, l, 00290-3597567898 cop, M 5_prob4.mp4</code></h2>
+    <p class="desc">
+      When you generate dozens of videos from source images using tools like Runway, Pika, or Luma, the resulting
+      filenames are unsortable garbage. Manually renaming each one to something like <code>saloon-night-shootout.mp4</code>
+      takes hours. ZohoVideoRenamer does it in minutes.
+    </p>
+  </div>
+</section>
+
+<section id="how" class="section">
+  <div class="container">
+    <div class="eyebrow">How it works</div>
+    <h2>From folder full of garbage filenames to clean library in 4 steps.</h2>
+    <p class="desc">No subscriptions, no cloud uploads, no lock-in. Everything runs locally except the (optional) AI naming calls, which use your own API key.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="num">01</span>
+        <h3>Point at two folders</h3>
+        <p>Pick your stills folder and your videos folder. Hit scan. The tool extracts a stub from each video filename
+        and matches it to the right still — typically 90%+ on the first try.</p>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <h3>Names: yours or AI's</h3>
+        <p>If your stills are already nicely named (e.g. <code>mountain-sunset.png</code>), videos inherit those names.
+        Otherwise pass in an Anthropic or OpenAI key and the AI looks at each still and proposes a 3-word descriptive name.</p>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <h3>Review in a browser</h3>
+        <p>A self-contained HTML interface opens. See each still side-by-side with its matched videos, edit any name,
+        approve/skip/flag with one keypress. Decisions save automatically.</p>
+      </div>
+      <div class="step">
+        <span class="num">04</span>
+        <h3>Bulk-rename safely</h3>
+        <p>Export approvals, run apply. Every file move is logged so a single command reverses the whole run
+        if something looks wrong.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="split">
+      <div>
+        <div class="eyebrow">Review UI</div>
+        <h2>A web interface that respects your time.</h2>
+        <p class="desc">
+          Built to chew through hundreds of entries quickly. Keyboard-driven (Enter approves, S skips, F flags),
+          live preview of exactly which files will move where, side-by-side still vs. video frame thumbnails,
+          and a play button on every video card so you can verify a match without leaving the page.
+        </p>
+        <p style="color: var(--muted); font-size: 14px;">
+          State is held in browser localStorage, so you can close the tab, take a break, and pick up where you left off.
+        </p>
+      </div>
+      <div class="image"><img src="screenshots/02-multi-video-entry.png" alt="Review UI showing the frontier-town-dusk entry with 2 matched videos"></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="split">
+      <div class="image"><img src="screenshots/04-name-form.png" alt="Name input form with live rename preview showing exactly which files will move where"></div>
+      <div>
+        <div class="eyebrow">No surprises</div>
+        <h2>See every rename before it happens.</h2>
+        <p class="desc">
+          The name input shows a live preview of every file that would be moved. Type a name; the preview updates as
+          you type. Multiple videos for the same still automatically get <code>-v1</code>, <code>-v2</code>, <code>-v3</code>
+          suffixes. Original and "copy" variants of the same still get distinct destinations so nothing overwrites.
+        </p>
+        <p style="color: var(--muted); font-size: 14px;">
+          When you actually apply, an undo log lands in the project folder. One command reverses the entire run.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="section">
+  <div class="container">
+    <div class="eyebrow">Features</div>
+    <h2>Everything you actually need. Nothing you don't.</h2>
+    <p class="desc">Built for the boring-but-painful case of organizing AI-generated content. Not a SaaS, not a startup — just a single Python package.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="icon">⚡</div>
+        <h3>Fast filename matching</h3>
+        <p>Substring + stub-pattern matching catches the embedded source filename that most AI video tools leave behind.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🧠</div>
+        <h3>Bring your own AI key</h3>
+        <p>Anthropic Claude or OpenAI GPT-4o for vision-based name proposals. Your keys, your account, your data.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🔒</div>
+        <h3>100% local files</h3>
+        <p>Files never leave your machine. The only network traffic is your own AI API calls, only if you opt in.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">↩</div>
+        <h3>Full undo log</h3>
+        <p>Every rename is recorded. <code>undo --execute</code> reverses an entire run if anything looks wrong.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🎬</div>
+        <h3>Multi-video aware</h3>
+        <p>When several videos point at one still, they automatically get <code>-v1</code>, <code>-v2</code> suffixes.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">⌨</div>
+        <h3>Keyboard driven</h3>
+        <p>Enter to approve, S to skip, F to flag, P/N to navigate. Chew through hundreds of entries in minutes.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🪶</div>
+        <h3>Minimal dependencies</h3>
+        <p>Just Python + ffmpeg + Pillow. No node_modules, no Docker, no SaaS.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">📂</div>
+        <h3>Self-contained review</h3>
+        <p>The review UI is a single HTML file. Move it, archive it, email it — works from <code>file://</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="download" class="section">
+  <div class="container">
+    <div class="eyebrow">Download</div>
+    <h2>Choose your install path.</h2>
+    <p class="desc">
+      Both the GUI app and the Python package require <code>ffmpeg</code> installed locally
+      (<code>brew install ffmpeg</code> on Mac, <a href="https://www.gyan.dev/ffmpeg/builds/" target="_blank" rel="noopener">official builds</a> on Windows).
+      The AI naming step is optional and only fires if you explicitly enable it.
+    </p>
+    <div class="downloads">
+      <div class="dl-card">
+        <div class="os">macOS · 11 +</div>
+        <h3>Desktop app (.dmg)</h3>
+        <p>Native macOS app. Pick folders in a window, no terminal needed.</p>
+        <a class="btn btn-primary" href="https://github.com/princezoho/ZohoVideoRenamer/releases/latest" target="_blank" rel="noopener">Download for macOS</a>
+      </div>
+      <div class="dl-card">
+        <div class="os">Windows · 10 +</div>
+        <h3>Desktop app (.exe)</h3>
+        <p>Native Windows app. Pick folders in a window, no terminal needed.</p>
+        <a class="btn btn-primary" href="https://github.com/princezoho/ZohoVideoRenamer/releases/latest" target="_blank" rel="noopener">Download for Windows</a>
+      </div>
+      <div class="dl-card">
+        <div class="os">Any · Python 3.9 +</div>
+        <h3>CLI / pip install</h3>
+        <p>For developers and power users. Scripts and tinkering welcome.</p>
+        <a class="btn btn-secondary" href="https://github.com/princezoho/ZohoVideoRenamer#install" target="_blank" rel="noopener">Install instructions</a>
+      </div>
+    </div>
+
+    <div style="margin-top: 32px;">
+      <h3 style="font-size: 16px; margin-bottom: 8px; color: var(--muted); font-weight: 500;">Or via pip:</h3>
+<pre class="code"><span class="comment"># with Anthropic Claude support</span>
+pip install <span class="accent">zoho-video-renamer[anthropic]</span>
+
+<span class="comment"># or with OpenAI</span>
+pip install <span class="accent">zoho-video-renamer[openai]</span>
+
+<span class="comment"># or both</span>
+pip install <span class="accent">zoho-video-renamer[all]</span></pre>
+    </div>
+  </div>
+</section>
+
+<section id="cli" class="section">
+  <div class="container">
+    <div class="eyebrow">CLI usage</div>
+    <h2>Five commands, no surprises.</h2>
+    <p class="desc">If you'd rather skip the GUI, the same flow works as four CLI calls. Same end result, scriptable.</p>
+<pre class="code"><span class="comment"># 1. Walk both folders, match videos to stills, generate thumbnails</span>
+zoho-video-renamer scan \
+  -s ~/Pictures/source-stills \
+  -v ~/Movies/generated-videos \
+  -o ./review
+
+<span class="comment"># 2. (Optional) Ask an AI to propose 3-word names</span>
+export ANTHROPIC_API_KEY=sk-ant-...
+zoho-video-renamer ai-name -o ./review --provider anthropic
+
+<span class="comment"># 3. Open the review UI in your browser</span>
+zoho-video-renamer review -o ./review
+
+<span class="comment"># 4. Dry-run, then execute. An undo log is written automatically.</span>
+zoho-video-renamer apply -o ./review -a ~/Downloads/rename-approvals.json
+zoho-video-renamer apply -o ./review -a ~/Downloads/rename-approvals.json --execute
+
+<span class="comment"># 5. If anything looks wrong, undo:</span>
+zoho-video-renamer undo --log ./review/rename-undo-*.json --execute</pre>
+  </div>
+</section>
+
+<section id="faq" class="section">
+  <div class="container">
+    <div class="eyebrow">FAQ</div>
+    <h2>Common questions.</h2>
+    <div style="max-width: 800px;">
+      <details class="faq">
+        <summary>Does it send my files anywhere?</summary>
+        <div class="body">No. Files never leave your machine. The only network traffic is the (optional) vision API calls
+          for name proposals, which go from your machine directly to your chosen AI provider using your own API key.
+          Skip the AI step and there's zero network activity.</div>
+      </details>
+      <details class="faq">
+        <summary>Which AI providers are supported?</summary>
+        <div class="body">Anthropic Claude (Sonnet 4.5 by default) and OpenAI GPT-4o. You bring your own API key from
+          <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> or
+          <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a>. The model is
+          configurable if you want to use a cheaper / faster variant.</div>
+      </details>
+      <details class="faq">
+        <summary>How does the matching actually work?</summary>
+        <div class="body">It looks at each video filename and tries to extract a "stub" — either a numeric ID pattern
+          like <code>00290-3597567898</code> (common in AI image generators), or a manual label like <code>bg14</code>,
+          <code>title-blah</code>, or <em>any literal substring</em> that matches one of your stills' filenames.
+          So if your still is <code>mountain-sunset.png</code> and your video is <code>pika-render-mountain-sunset-v2.mp4</code>,
+          the substring <code>mountain-sunset</code> matches.</div>
+      </details>
+      <details class="faq">
+        <summary>What if some videos don't match anything?</summary>
+        <div class="body">They're listed in <code>unmatched-videos.json</code> and left alone. You can match them
+          manually after the fact, or rerun with different stills folders. Nothing gets moved or renamed without your approval.</div>
+      </details>
+      <details class="faq">
+        <summary>What if I want to undo?</summary>
+        <div class="body">Every <code>apply --execute</code> writes a timestamped undo log to your project folder.
+          Run <code>zoho-video-renamer undo --log path/to/rename-undo-*.json --execute</code> and every move is reversed.
+          The log records each rename as (current path → original path), so even partial-failure runs are reversible.</div>
+      </details>
+      <details class="faq">
+        <summary>Does it work on Linux?</summary>
+        <div class="body">Yes — the Python package runs anywhere Python 3.9+ runs. The pre-built desktop app is only
+          shipped for macOS and Windows for now. Linux users can <code>pip install</code> and use either the CLI or the
+          tkinter GUI. AppImage builds may come later.</div>
+      </details>
+      <details class="faq">
+        <summary>Will it overwrite my files?</summary>
+        <div class="body">No. Every rename is checked for collisions before execution. If two source files would end up
+          at the same target path, the run aborts with a clear error rather than overwriting. The browser preview shows
+          you exactly what each file will be renamed to before you ever commit.</div>
+      </details>
+      <details class="faq">
+        <summary>Can I contribute?</summary>
+        <div class="body">Please do. The codebase is small (~1500 lines of Python). PRs and issues welcome on
+          <a href="https://github.com/princezoho/ZohoVideoRenamer" target="_blank" rel="noopener">GitHub</a>.
+          See <code>docs/architecture.md</code> for a tour.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div>
+      <a href="https://github.com/princezoho/ZohoVideoRenamer" target="_blank" rel="noopener">GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/princezoho/ZohoVideoRenamer/issues" target="_blank" rel="noopener">Issues</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/princezoho/ZohoVideoRenamer/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+    </div>
+    <div class="meta">Open source under the MIT License.</div>
+  </div>
+</footer>
+
+</body>
+</html>

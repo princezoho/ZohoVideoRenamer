@@ -1,6 +1,10 @@
 # ZohoVideoRenamer
 
+**🌐 [zohovideorenamer landing page](https://princezoho.github.io/ZohoVideoRenamer/) · 💾 [Latest release](https://github.com/princezoho/ZohoVideoRenamer/releases/latest) · 📦 [Install via pip](#install)**
+
 Match a folder of **videos** to a folder of **source stills**, propose descriptive names (from the still's existing filename OR via an AI vision API), review every pairing in a browser UI, and bulk-rename everything with a full undo log.
+
+![Screenshot of the review UI](docs/screenshots/03-three-videos.png)
 
 Built for the case where you have:
 
@@ -31,6 +35,10 @@ AI video generators (Runway, Pika, Sora, Luma, etc.) tend to emit videos with fi
 
 ## Install
 
+**Don't want to deal with Python?** Download the desktop app from the [releases page](https://github.com/princezoho/ZohoVideoRenamer/releases/latest) — pre-built `.dmg` for macOS and `.exe` for Windows.
+
+**Want the CLI?**
+
 ```bash
 pip install zoho-video-renamer
 ```
@@ -46,7 +54,15 @@ pip install anthropic    # for Anthropic Claude
 pip install openai       # for OpenAI GPT-4o
 ```
 
-## Quickstart
+## Quickstart (GUI)
+
+```bash
+zoho-video-renamer-gui
+```
+
+A native window opens. Pick your stills folder, pick your videos folder, optionally enter an AI key, hit Start. The review UI opens automatically when scanning completes.
+
+## Quickstart (CLI)
 
 ```bash
 # 1. Scan: walk both folders, match videos to stills, build thumbnails

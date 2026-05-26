@@ -42,5 +42,8 @@ Issues = "https://github.com/princezoho/ZohoVideoRenamer/issues"
 [project.scripts]
 zoho-video-renamer = "zoho_video_renamer.cli:main"
 
+[project.gui-scripts]
+zoho-video-renamer-gui = "zoho_video_renamer.gui:main"
+
 [tool.setuptools.packages.find]
 include = ["zoho_video_renamer*"]

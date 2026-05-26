@@ -1,0 +1,332 @@
+"""Native desktop GUI wrapper for ZohoVideoRenamer.
+
+Built on tkinter so it requires no extra dependencies — Python ships with it.
+The GUI is intentionally minimal: pick two folders, pick output, optionally
+configure AI naming, hit Start. Under the hood it calls the same CLI code path.
+
+Launch via:
+    zoho-video-renamer-gui
+    python -m zoho_video_renamer.gui
+"""
+from __future__ import annotations
+
+import os
+import sys
+import threading
+import tkinter as tk
+import webbrowser
+from tkinter import filedialog, messagebox, ttk
+from typing import Optional
+
+
+from . import __version__
+from . import naming, ui
+from .matcher import (
+    match_videos_to_stills, pick_canonical_still, scan_stills, scan_videos,
+)
+from .thumbnailer import (
+    batch_extract_video_frames, batch_make_still_thumbs,
+    check_ffmpeg, check_ffprobe, safe_id,
+)
+
+
+BG = "#1a1a1d"
+PANEL = "#25252a"
+PANEL2 = "#2e2e35"
+TEXT = "#e8e8ec"
+MUTED = "#9a9aa6"
+ACCENT = "#d8a14a"
+GOOD = "#6ec077"
+BAD = "#d97a6c"
+
+
+class App:
+    def __init__(self, root: tk.Tk):
+        self.root = root
+        root.title(f"ZohoVideoRenamer {__version__}")
+        root.geometry("720x640")
+        root.configure(bg=BG)
+        root.minsize(680, 600)
+
+        # State
+        self.stills_dir = tk.StringVar()
+        self.videos_dir = tk.StringVar()
+        self.output_dir = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "Desktop", "video-rename-review"))
+        self.provider = tk.StringVar(value="(none — use existing names)")
+        self.api_key = tk.StringVar()
+        self.model_override = tk.StringVar()
+
+        self._build_ui()
+        self._check_environment()
+
+    # ---------------------------------------------------------------- layout
+
+    def _build_ui(self):
+        pad = {"padx": 16, "pady": 8}
+
+        # Header
+        hdr = tk.Frame(self.root, bg=BG)
+        hdr.pack(fill="x", padx=20, pady=(20, 8))
+        tk.Label(hdr, text="ZohoVideoRenamer", bg=BG, fg=ACCENT,
+                 font=("-apple-system", 20, "bold")).pack(anchor="w")
+        tk.Label(hdr,
+                 text="Match videos to source stills, propose names, review, then bulk-rename.",
+                 bg=BG, fg=MUTED, font=("-apple-system", 12)).pack(anchor="w", pady=(2, 0))
+
+        # Folder pickers
+        self._folder_row("Stills folder", self.stills_dir,
+                         "Folder containing source images (PNG, JPG, etc.)")
+        self._folder_row("Videos folder", self.videos_dir,
+                         "Folder containing the videos to rename.")
+        self._folder_row("Output / review folder", self.output_dir,
+                         "Where the review UI + undo log go. Will be created if missing.")
+
+        # AI section
+        ai_frame = tk.LabelFrame(self.root, text="  AI naming (optional)  ",
+                                  bg=BG, fg=ACCENT, bd=1, relief="solid",
+                                  font=("-apple-system", 12, "bold"))
+        ai_frame.pack(fill="x", padx=20, pady=(12, 8))
+
+        tk.Label(ai_frame,
+                 text="If your stills are already named (e.g. mountain-sunset.png), leave this set to (none).\n"
+                      "Otherwise pick a vision API to propose 3-word descriptive names.",
+                 bg=BG, fg=MUTED, font=("-apple-system", 11), justify="left").pack(anchor="w", padx=12, pady=(8, 6))
+
+        row = tk.Frame(ai_frame, bg=BG)
+        row.pack(fill="x", padx=12, pady=(0, 6))
+        tk.Label(row, text="Provider:", bg=BG, fg=TEXT, width=12, anchor="w").pack(side="left")
+        provider_menu = ttk.Combobox(row, textvariable=self.provider, state="readonly",
+                                     values=["(none — use existing names)", "anthropic", "openai"],
+                                     width=32)
+        provider_menu.pack(side="left", fill="x", expand=True, padx=(4, 0))
+
+        row = tk.Frame(ai_frame, bg=BG)
+        row.pack(fill="x", padx=12, pady=(4, 6))
+        tk.Label(row, text="API key:", bg=BG, fg=TEXT, width=12, anchor="w").pack(side="left")
+        key_entry = tk.Entry(row, textvariable=self.api_key, show="•",
+                             bg=PANEL2, fg=TEXT, insertbackground=TEXT, bd=1, relief="solid")
+        key_entry.pack(side="left", fill="x", expand=True, padx=(4, 0))
+
+        row = tk.Frame(ai_frame, bg=BG)
+        row.pack(fill="x", padx=12, pady=(4, 10))
+        tk.Label(row, text="Model:", bg=BG, fg=TEXT, width=12, anchor="w").pack(side="left")
+        model_entry = tk.Entry(row, textvariable=self.model_override,
+                               bg=PANEL2, fg=TEXT, insertbackground=TEXT, bd=1, relief="solid")
+        model_entry.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        tk.Label(row, text="(optional override)", bg=BG, fg=MUTED, font=("-apple-system", 10)).pack(side="left", padx=(6, 0))
+
+        # Action row
+        action_row = tk.Frame(self.root, bg=BG)
+        action_row.pack(fill="x", padx=20, pady=12)
+        self.start_btn = tk.Button(action_row, text="▶  Scan + Generate Review",
+                                    command=self._start, bg=ACCENT, fg="#1a1a1d",
+                                    font=("-apple-system", 13, "bold"),
+                                    activebackground=GOOD, bd=0, padx=18, pady=10,
+                                    cursor="hand2")
+        self.start_btn.pack(side="left")
+        tk.Button(action_row, text="Open last review",
+                  command=self._open_review, bg=PANEL2, fg=TEXT, bd=0,
+                  padx=12, pady=10, cursor="hand2").pack(side="left", padx=8)
+
+        # Log area
+        tk.Label(self.root, text="Log:", bg=BG, fg=MUTED,
+                 font=("-apple-system", 11)).pack(anchor="w", padx=20)
+        log_frame = tk.Frame(self.root, bg=PANEL)
+        log_frame.pack(fill="both", expand=True, padx=20, pady=(2, 16))
+        self.log = tk.Text(log_frame, bg=PANEL, fg=TEXT, bd=0, font=("Menlo", 11),
+                            wrap="word", state="disabled")
+        self.log.pack(side="left", fill="both", expand=True, padx=8, pady=8)
+        sb = tk.Scrollbar(log_frame, command=self.log.yview)
+        sb.pack(side="right", fill="y")
+        self.log.configure(yscrollcommand=sb.set)
+
+    def _folder_row(self, label: str, var: tk.StringVar, hint: str):
+        outer = tk.Frame(self.root, bg=BG)
+        outer.pack(fill="x", padx=20, pady=4)
+        tk.Label(outer, text=label, bg=BG, fg=TEXT, anchor="w",
+                 font=("-apple-system", 12, "bold")).pack(anchor="w")
+        row = tk.Frame(outer, bg=BG)
+        row.pack(fill="x", pady=(2, 2))
+        e = tk.Entry(row, textvariable=var, bg=PANEL2, fg=TEXT, insertbackground=TEXT,
+                     bd=1, relief="solid")
+        e.pack(side="left", fill="x", expand=True)
+        tk.Button(row, text="Browse…",
+                   command=lambda: self._pick(var),
+                   bg=PANEL, fg=TEXT, bd=0, padx=10, pady=2, cursor="hand2").pack(side="left", padx=4)
+        tk.Label(outer, text=hint, bg=BG, fg=MUTED, font=("-apple-system", 10),
+                 anchor="w").pack(anchor="w")
+
+    def _pick(self, var: tk.StringVar):
+        d = filedialog.askdirectory(initialdir=var.get() or os.path.expanduser("~"))
+        if d:
+            var.set(d)
+
+    # ---------------------------------------------------------------- logic
+
+    def _check_environment(self):
+        msgs = []
+        if not check_ffmpeg():
+            msgs.append("⚠ ffmpeg not found on PATH. Install ffmpeg (`brew install ffmpeg` on macOS) before scanning.")
+        if not check_ffprobe():
+            msgs.append("⚠ ffprobe not found on PATH. It comes with ffmpeg — same install.")
+        if msgs:
+            for m in msgs:
+                self._log(m)
+        else:
+            self._log("✓ ffmpeg found.")
+        self._log(f"Version: ZohoVideoRenamer {__version__}")
+        self._log("")
+        self._log("Pick a stills folder and a videos folder, then click Scan.")
+        self._log("Tip: if your stills are already nicely named (e.g. mountain-sunset.png),")
+        self._log("     leave AI provider as (none) — names will be inherited.")
+
+    def _log(self, msg: str):
+        self.log.configure(state="normal")
+        self.log.insert("end", msg + "\n")
+        self.log.see("end")
+        self.log.configure(state="disabled")
+        self.root.update_idletasks()
+
+    def _start(self):
+        stills = self.stills_dir.get().strip()
+        videos = self.videos_dir.get().strip()
+        out = self.output_dir.get().strip()
+        if not stills or not os.path.isdir(stills):
+            messagebox.showerror("Missing folder", "Pick a valid stills folder.")
+            return
+        if not videos or not os.path.isdir(videos):
+            messagebox.showerror("Missing folder", "Pick a valid videos folder.")
+            return
+        if not out:
+            messagebox.showerror("Missing folder", "Pick an output folder.")
+            return
+
+        self.start_btn.configure(state="disabled", text="Working…")
+        t = threading.Thread(target=self._run, args=(stills, videos, out), daemon=True)
+        t.start()
+
+    def _run(self, stills_dir: str, videos_dir: str, out_dir: str):
+        try:
+            self._log("\n" + "=" * 60)
+            self._log("Scanning stills...")
+            stills_index = scan_stills(stills_dir, recursive=True)
+            self._log(f"  Found {sum(len(v) for v in stills_index.values())} stills across {len(stills_index)} stubs.")
+
+            self._log("Scanning videos...")
+            videos = scan_videos(videos_dir, recursive=True)
+            self._log(f"  Found {len(videos)} videos.")
+
+            self._log("Matching...")
+            matches, unmatched = match_videos_to_stills(stills_index, videos)
+            self._log(f"  Matched {len(matches)} stubs, {len(unmatched)} videos unmatched.")
+
+            os.makedirs(os.path.join(out_dir, "thumbs", "stills"), exist_ok=True)
+            os.makedirs(os.path.join(out_dir, "thumbs", "videos"), exist_ok=True)
+
+            def picker(stills):
+                return pick_canonical_still(stills)
+
+            dataset = ui.matches_to_ui_dataset(
+                matches, stills_root=stills_dir, videos_root=videos_dir,
+                project_root=out_dir, canonical_picker=picker,
+                suggested_names={},
+            )
+            for entry in dataset["entries"]:
+                if entry.get("canonical_still_rel"):
+                    stem = os.path.splitext(os.path.basename(entry["canonical_still_rel"]))[0]
+                    cleaned = naming.name_from_still_filename(stem + ".png")
+                    if naming.looks_like_descriptive_name(cleaned):
+                        entry["suggested_name"] = cleaned
+
+            import json
+            with open(os.path.join(out_dir, "matches.json"), "w") as f:
+                json.dump(dataset, f, indent=2, default=str)
+            self._log("  Wrote matches.json")
+
+            # Thumbnails
+            self._log("Generating still thumbnails...")
+            still_tasks = []
+            for e in dataset["entries"]:
+                if not e["canonical_still_rel"]:
+                    continue
+                src = next((s.abs_path for s in stills_index.get(e["stub"], [])
+                            if os.path.relpath(s.abs_path, out_dir) == e["canonical_still_rel"]), None)
+                if not src and stills_index.get(e["stub"]):
+                    src = stills_index[e["stub"]][0].abs_path
+                if src:
+                    still_tasks.append((src, os.path.join(out_dir, e["still_thumb"])))
+            ok, fail = batch_make_still_thumbs(still_tasks, max_workers=4)
+            self._log(f"  {ok} ok, {fail} failed")
+
+            self._log("Extracting video frames...")
+            vid_tasks = []
+            for e in dataset["entries"]:
+                for v in e["videos"]:
+                    src = next((vid.abs_path for vid in videos if vid.filename == v["filename"]), None)
+                    if src:
+                        vid_tasks.append((src, os.path.join(out_dir, v["thumb"]), 0.5))
+            ok, fail = batch_extract_video_frames(vid_tasks, max_workers=4)
+            self._log(f"  {ok} ok, {fail} failed")
+
+            # AI naming?
+            provider = self.provider.get()
+            if provider not in ("(none — use existing names)", "(none)", ""):
+                key = self.api_key.get().strip()
+                if not key:
+                    self._log(f"⚠ AI provider '{provider}' selected but no API key provided. Skipping AI naming.")
+                else:
+                    self._log(f"Calling {provider} for name suggestions...")
+                    try:
+                        from .ai import get_client
+                        client = get_client(provider, api_key=key,
+                                            model=self.model_override.get().strip() or None)
+                        items = [(e["id"], os.path.join(out_dir, e["still_thumb"]))
+                                 for e in dataset["entries"]
+                                 if e["still_thumb"] and os.path.exists(os.path.join(out_dir, e["still_thumb"]))]
+                        raw_names = naming.ai_name_batch(client, items, max_workers=3,
+                                                         on_progress=lambda d, t, _id, n: self._log(f"  {d}/{t}: {_id} -> {n}"))
+                        final = naming.disambiguate_names(raw_names)
+                        for e in dataset["entries"]:
+                            if e["id"] in final:
+                                e["suggested_name"] = final[e["id"]]
+                        with open(os.path.join(out_dir, "matches.json"), "w") as f:
+                            json.dump(dataset, f, indent=2)
+                        self._log(f"  Got {len(final)} AI names.")
+                    except Exception as e:
+                        self._log(f"  AI naming failed: {e}")
+
+            html_path = os.path.join(out_dir, "index.html")
+            ui.write_review_html(dataset, html_path)
+            self._log(f"Wrote review UI: {html_path}")
+
+            self._log("\n✓ Done. Opening review UI in your browser...")
+            webbrowser.open("file://" + html_path)
+
+        except Exception as e:
+            self._log(f"\n✗ Error: {e}")
+            import traceback
+            self._log(traceback.format_exc())
+        finally:
+            self.root.after(0, lambda: self.start_btn.configure(state="normal", text="▶  Scan + Generate Review"))
+
+    def _open_review(self):
+        html_path = os.path.join(self.output_dir.get(), "index.html")
+        if os.path.exists(html_path):
+            webbrowser.open("file://" + html_path)
+        else:
+            messagebox.showinfo("No review yet", f"No index.html in:\n{self.output_dir.get()}\n\nRun a scan first.")
+
+
+def main():
+    root = tk.Tk()
+    try:
+        # Set tk theme to dark-ish on macOS
+        root.tk.call("tk", "scaling", 1.2)
+    except Exception:
+        pass
+    App(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
