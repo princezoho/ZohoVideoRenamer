@@ -23,12 +23,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            artifact_name: ZohoVideoRenamer-macOS
+          # Intel macOS (older Macs + anything that doesn't run arm64 binaries)
+          - os: macos-13
+            artifact_name: ZohoVideoRenamer-macOS-Intel
             binary_name: ZohoVideoRenamer
+            arch_suffix: "-Intel"
+          # Apple Silicon macOS (M1/M2/M3/M4 Macs)
+          - os: macos-14
+            artifact_name: ZohoVideoRenamer-macOS-AppleSilicon
+            binary_name: ZohoVideoRenamer
+            arch_suffix: "-AppleSilicon"
           - os: windows-latest
             artifact_name: ZohoVideoRenamer-Windows
             binary_name: ZohoVideoRenamer.exe
+            arch_suffix: ""
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -45,11 +53,13 @@ jobs:
           pip install -e ".[all]"
 
       - name: Build with PyInstaller (macOS)
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: |
-          # --collect-all tkinter pulls in tcl/tk runtime files that PyInstaller
-          # otherwise misses, which is the usual cause of "app crashes immediately
-          # on launch" for tkinter GUIs bundled on macOS.
+          # Note: we build separately for Intel (macos-13) and Apple Silicon (macos-14)
+          # rather than a universal2 binary, because Python on the runners is single-arch.
+          ARCH=$(uname -m)
+          echo "Building for arch: $ARCH"
+
           pyinstaller --noconfirm --windowed --onedir \
             --name ZohoVideoRenamer \
             --icon docs/assets/logo.icns \
@@ -64,13 +74,13 @@ jobs:
             --hidden-import _tkinter \
             zoho_video_renamer/gui.py
 
-          # Sanity check: app bundle was actually built and CLI runs
           ls -la dist/
           if [ -d dist/ZohoVideoRenamer.app ]; then
-            echo "✓ .app bundle exists"
-            # Run the bundled executable headlessly for ~2 seconds to surface import errors
-            # (it will fail to open a window but should print import errors if any)
-            timeout 3s "dist/ZohoVideoRenamer.app/Contents/MacOS/ZohoVideoRenamer" 2>&1 | head -40 || true
+            echo "✓ .app bundle exists, architecture:"
+            file dist/ZohoVideoRenamer.app/Contents/MacOS/ZohoVideoRenamer
+            # Smoke-run the bundled executable headlessly for ~3 seconds to surface
+            # any import-time crash in the CI log.
+            timeout 3s "dist/ZohoVideoRenamer.app/Contents/MacOS/ZohoVideoRenamer" 2>&1 | head -40 || echo "(timed out or exited — that may be normal if it opened a tkinter window)"
           fi
 
       - name: Build with PyInstaller (Windows)
@@ -90,19 +100,15 @@ jobs:
             zoho_video_renamer/gui.py
 
       - name: Package macOS app into .dmg
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: |
           cd dist
           if [ -d ZohoVideoRenamer.app ]; then
-            # Strip the quarantine attribute so users don't get a Gatekeeper warning
-            # when downloading the DMG. (Unsigned apps still trigger the warning on
-            # first launch — see the landing page security note.)
             xattr -dr com.apple.quarantine ZohoVideoRenamer.app 2>/dev/null || true
-            hdiutil create -volname "ZohoVideoRenamer" -srcfolder ZohoVideoRenamer.app -ov -format UDZO ZohoVideoRenamer.dmg
-          else
-            # onedir output: zip the folder
-            cd ZohoVideoRenamer
-            zip -r ../ZohoVideoRenamer-macOS.zip .
+            # Suffix the filename with -Intel or -AppleSilicon so users can pick the right one
+            DMG_NAME="ZohoVideoRenamer${{ matrix.arch_suffix }}.dmg"
+            hdiutil create -volname "ZohoVideoRenamer" -srcfolder ZohoVideoRenamer.app -ov -format UDZO "$DMG_NAME"
+            ls -la *.dmg
           fi
 
       - name: Package Windows .exe
