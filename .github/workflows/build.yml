@@ -65,6 +65,7 @@ jobs:
             --collect-all tkinter \
             --collect-all anthropic \
             --collect-all openai \
+            --collect-all imageio_ffmpeg \
             --hidden-import tkinter \
             --hidden-import tkinter.ttk \
             --hidden-import tkinter.filedialog \
@@ -91,6 +92,7 @@ jobs:
             --collect-all tkinter `
             --collect-all anthropic `
             --collect-all openai `
+            --collect-all imageio_ffmpeg `
             --hidden-import tkinter `
             --hidden-import tkinter.ttk `
             --hidden-import tkinter.filedialog `

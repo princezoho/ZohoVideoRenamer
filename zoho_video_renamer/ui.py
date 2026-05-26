@@ -171,11 +171,17 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
   .still-file-list li { padding: 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .still-file-list li .tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; background: var(--border); color: var(--text); margin-right: 5px; }
   .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-  .video-card { background: var(--panel2); border-radius: 6px; padding: 8px; cursor: pointer; position: relative; }
+  .video-card { background: var(--panel2); border-radius: 6px; padding: 8px; cursor: pointer; position: relative; border: 2px solid transparent; transition: opacity .15s, border-color .15s; user-select: none; }
+  .video-card:hover { border-color: var(--accent); }
+  .video-card.excluded { opacity: 0.32; border-color: var(--bad); background: rgba(217,122,108,0.08); }
+  .video-card.excluded:hover { opacity: 0.55; }
+  .video-card .include-toggle { position: absolute; top: 8px; left: 8px; background: var(--good); color: #0f1a10; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: 700; pointer-events: none; }
+  .video-card.excluded .include-toggle { background: var(--bad); color: white; }
   .video-card video, .video-card img { width: 100%; border-radius: 4px; display: block; }
   .video-card .vname { font-size: 10px; color: var(--muted); word-break: break-all; margin-top: 6px; line-height: 1.3; max-height: 50px; overflow: hidden; }
+  .video-card.excluded .vname { text-decoration: line-through; }
   .video-card .vbadge { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
-  .video-card .play-btn { position: absolute; bottom: 28px; right: 12px; background: rgba(0,0,0,0.7); color: white; padding: 3px 6px; border-radius: 3px; font-size: 10px; border: none; cursor: pointer; }
+  .video-card .play-btn { position: absolute; bottom: 28px; right: 12px; background: rgba(0,0,0,0.7); color: white; padding: 3px 6px; border-radius: 3px; font-size: 10px; border: none; cursor: pointer; z-index: 2; }
   .form-row { background: var(--panel); border-radius: 8px; padding: 20px; margin-bottom: 24px; }
   .form-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
   .name-input { width: 100%; padding: 10px 14px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 16px; font-family: monospace; font-weight: 600; }
@@ -298,12 +304,35 @@ function renderSidebar() {
   document.getElementById('progress-fill').style.width = (100 * approved / DATA.entries.length) + '%';
 }
 
+function getExcluded(entry) {
+  const s = state[entry.id] || {};
+  return new Set(s.excluded || []);
+}
+function isExcluded(entry, videoFilename) {
+  return getExcluded(entry).has(videoFilename);
+}
+function includedVideos(entry) {
+  const excl = getExcluded(entry);
+  return entry.videos.filter(v => !excl.has(v.filename));
+}
+function toggleVideo(entryId, videoFilename, event) {
+  if (event) { event.stopPropagation(); }
+  state[entryId] = state[entryId] || {};
+  state[entryId].excluded = state[entryId].excluded || [];
+  const arr = state[entryId].excluded;
+  const idx = arr.indexOf(videoFilename);
+  if (idx >= 0) arr.splice(idx, 1); else arr.push(videoFilename);
+  saveState();
+  render();
+}
+
 function namesForEntry(entry, baseName) {
   baseName = (baseName || '').trim();
   if (!baseName) return [];
   const out = [];
-  const multi = entry.videos.length > 1;
-  entry.videos.forEach((v, i) => {
+  const included = includedVideos(entry);
+  const multi = included.length > 1;
+  included.forEach((v, i) => {
     const suffix = multi ? `-v${i+1}` : '';
     const folder = v.rel_path.split('/').slice(0, -1).join('/');
     const ext = v.filename.match(/\.[^.]+$/)[0];
@@ -344,16 +373,27 @@ function render() {
     stillFiles += `<li><span class="tag">${tag}</span>${f.rel_path}</li>`;
   });
 
+  // Build video cards. Each card has an include/exclude toggle so the user
+  // can keep correct matches and reject wrong ones within the same entry.
+  // v1/v2 numbering uses the INCLUDED-only index, not the raw match index.
+  const includedOnly = includedVideos(entry);
+  const includedFilenames = new Set(includedOnly.map(v => v.filename));
   let videoCards = '';
   entry.videos.forEach((v, i) => {
-    const vSuffix = entry.videos.length > 1 ? `-v${i+1}` : '';
+    const included = includedFilenames.has(v.filename);
+    const includedIdx = included ? includedOnly.indexOf(v) : -1;
+    const vSuffix = !included
+      ? '(excluded — won\\'t be renamed)'
+      : (includedOnly.length > 1 ? `-v${includedIdx+1}` : '(no suffix)');
+    const safeFilename = v.filename.replace(/'/g,"\\\\'").replace(/"/g,'&quot;');
     videoCards += `
-      <div class="video-card">
+      <div class="video-card ${included ? '' : 'excluded'}" onclick="toggleVideo('${entry.id}', '${safeFilename}', event)" title="${included ? 'Click to exclude this video' : 'Click to include this video'}">
+        <span class="include-toggle">${included ? '✓ KEEP' : '✗ EXCLUDED'}</span>
         <span class="vbadge">${i+1}${entry.videos.length > 1 ? `/${entry.videos.length}` : ''}</span>
-        <img src="${v.thumb}" loading="lazy" alt="" onclick="zoomImage(this.src)">
-        <button class="play-btn" onclick="playVideo('${v.rel_path.replace(/'/g,"&apos;")}')">▶ play</button>
+        <img src="${v.thumb}" loading="lazy" alt="" onclick="event.stopPropagation(); zoomImage(this.src);">
+        <button class="play-btn" onclick="event.stopPropagation(); playVideo('${v.rel_path.replace(/'/g,"&apos;")}');">▶ play</button>
         <div class="vname">${v.filename}</div>
-        <div style="font-size:11px;color:var(--accent);margin-top:4px;font-family:monospace;">→ ${vSuffix || '(no suffix)'}</div>
+        <div style="font-size:11px;color:${included ? 'var(--accent)' : 'var(--bad)'};margin-top:4px;font-family:monospace;">→ ${vSuffix}</div>
       </div>`;
   });
 
@@ -379,7 +419,7 @@ function render() {
         <ul class="still-file-list">${stillFiles}</ul>
       </div>
       <div class="video-box">
-        <h3>Matched Videos (${entry.videos.length})</h3>
+        <h3>Matched Videos (${includedOnly.length === entry.videos.length ? entry.videos.length : `${includedOnly.length} of ${entry.videos.length} kept`}) <span style="color:var(--muted);text-transform:none;font-weight:400;letter-spacing:0;font-size:11px;">— click a card to exclude wrong matches</span></h3>
         <div class="video-grid">${videoCards}</div>
       </div>
     </div>

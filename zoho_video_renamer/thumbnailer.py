@@ -1,6 +1,9 @@
 """Generate thumbnails for stills and extract representative frames from videos.
 
-Requires ffmpeg/ffprobe on the system PATH. Stills are downsized with Pillow.
+Tries the bundled imageio-ffmpeg binary first (so the desktop app Just Works
+without requiring users to install ffmpeg manually), then falls back to a
+system-installed ffmpeg/ffprobe on PATH if imageio-ffmpeg isn't available.
+Stills are downsized with Pillow (no external binary needed).
 """
 from __future__ import annotations
 
@@ -19,13 +22,33 @@ def safe_id(s: str, maxlen: int = 200) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "_", s)[:maxlen]
 
 
+def _bundled_ffmpeg() -> Optional[str]:
+    """Return path to the imageio-ffmpeg-bundled ffmpeg binary, if installed."""
+    try:
+        import imageio_ffmpeg  # noqa: F401
+        path = imageio_ffmpeg.get_ffmpeg_exe()
+        if path and os.path.exists(path):
+            return path
+    except Exception:
+        pass
+    return None
+
+
 def check_ffmpeg() -> Optional[str]:
-    """Return path to ffmpeg if available, else None."""
-    return shutil.which("ffmpeg")
+    """Return path to ffmpeg, preferring the bundled binary then system PATH."""
+    return _bundled_ffmpeg() or shutil.which("ffmpeg")
 
 
 def check_ffprobe() -> Optional[str]:
+    """Return path to ffprobe. Only available if user has system ffmpeg installed;
+    imageio-ffmpeg bundles ffmpeg only, not ffprobe. For our thumbnail use case
+    we don't actually need ffprobe — extract_video_frame works with ffmpeg alone."""
     return shutil.which("ffprobe")
+
+
+def _ffmpeg_cmd() -> str:
+    """Return the ffmpeg executable to invoke. Bundled binary preferred."""
+    return check_ffmpeg() or "ffmpeg"
 
 
 def get_video_duration(path: str, timeout: float = 10.0) -> Optional[float]:
@@ -77,7 +100,7 @@ def extract_video_frame(
         return True
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
+        _ffmpeg_cmd(), "-y", "-loglevel", "error",
         "-ss", str(seek_seconds), "-i", src,
         "-frames:v", "1",
         "-vf", f"scale={max_width}:-2",
@@ -101,7 +124,7 @@ def extract_video_frame_full(
         return True
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
+        _ffmpeg_cmd(), "-y", "-loglevel", "error",
         "-ss", str(seek_seconds), "-i", src,
         "-frames:v", "1",
         "-q:v", "1", dst,

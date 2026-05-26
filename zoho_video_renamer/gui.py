@@ -227,16 +227,15 @@ class App:
     # ---------------------------------------------------------------- logic
 
     def _check_environment(self):
-        msgs = []
-        if not check_ffmpeg():
-            msgs.append("⚠ ffmpeg not found on PATH. Install ffmpeg (`brew install ffmpeg` on macOS) before scanning.")
-        if not check_ffprobe():
-            msgs.append("⚠ ffprobe not found on PATH. It comes with ffmpeg — same install.")
-        if msgs:
-            for m in msgs:
-                self._log(m)
+        ffmpeg = check_ffmpeg()
+        if ffmpeg:
+            if "imageio_ffmpeg" in ffmpeg or "imageio-ffmpeg" in ffmpeg:
+                self._log("✓ Using bundled ffmpeg.")
+            else:
+                self._log(f"✓ Using system ffmpeg: {ffmpeg}")
         else:
-            self._log("✓ ffmpeg found.")
+            self._log("⚠ ffmpeg not available (neither bundled nor on PATH). Video thumbnails won't generate.")
+            self._log("  If you installed via pip and not via the .dmg, `pip install imageio-ffmpeg` or `brew install ffmpeg`.")
         self._log(f"Version: ZohoVideoRenamer {__version__}")
         self._log("")
         self._log("Pick a stills folder and a videos folder, then click Scan.")

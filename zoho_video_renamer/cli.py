@@ -362,6 +362,25 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: regen-html
+# ---------------------------------------------------------------------------
+
+def cmd_regen_html(args: argparse.Namespace) -> int:
+    out_dir = os.path.abspath(args.output)
+    matches_path = os.path.join(out_dir, "matches.json")
+    if not os.path.exists(matches_path):
+        err(f"No matches.json in {out_dir}. Run 'scan' first.")
+        return 2
+    with open(matches_path) as f:
+        dataset = json.load(f)
+    html_path = os.path.join(out_dir, "index.html")
+    ui.write_review_html(dataset, html_path)
+    good(f"Regenerated {html_path}")
+    info("Open it in your browser (your existing approvals are preserved in localStorage).")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: undo
 # ---------------------------------------------------------------------------
 
@@ -432,6 +451,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--execute", action="store_true",
                     help="Actually rename. Without this flag, runs as dry-run.")
     sp.set_defaults(func=cmd_apply)
+
+    # regen-html
+    sp = sub.add_parser("regen-html", help="Regenerate index.html from an existing matches.json (pick up new UI features without rescanning).")
+    sp.add_argument("-o", "--output", default="./review", help="Project output dir containing matches.json")
+    sp.set_defaults(func=cmd_regen_html)
 
     # undo
     sp = sub.add_parser("undo", help="Reverse a previous rename run using its undo log.")
