@@ -89,32 +89,49 @@ def err(msg: str) -> None: print(_c(msg, "red"), file=sys.stderr)
 # ---------------------------------------------------------------------------
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    if not check_ffmpeg() or not check_ffprobe():
-        err("ffmpeg/ffprobe not found on PATH. Install ffmpeg first.")
+    if not check_ffmpeg():
+        err("ffmpeg not found. Install via `brew install ffmpeg` or use the bundled .dmg.")
         return 2
 
-    stills_dirs = [d for d in args.stills if d]
-    if not stills_dirs:
-        err("At least one --stills directory is required."); return 2
+    videos_only = bool(getattr(args, "videos_only", False))
+
     if not args.videos:
         err("--videos directory is required."); return 2
+    if not videos_only:
+        stills_dirs = [d for d in (args.stills or []) if d]
+        if not stills_dirs:
+            err("At least one --stills directory is required (or pass --videos-only).")
+            return 2
+    else:
+        stills_dirs = []
 
     out_dir = os.path.abspath(args.output)
     os.makedirs(os.path.join(out_dir, "thumbs", "stills"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "thumbs", "videos"), exist_ok=True)
 
-    info(_c("Scanning stills folders...", "bold"))
-    stills_index = scan_stills(*stills_dirs, recursive=not args.no_recursive)
-    info(f"  Found {sum(len(v) for v in stills_index.values())} stills across {len(stills_index)} unique stubs")
+    if videos_only:
+        info(_c("Videos-only mode (catalog) — no stills folder needed.", "bold"))
+        info(_c("Scanning videos folder...", "bold"))
+        videos = scan_videos(args.videos, recursive=not args.no_recursive)
+        info(f"  Found {len(videos)} videos")
+        from .matcher import scan_videos_only
+        matches = scan_videos_only(videos)
+        unmatched = []
+        info(f"  Building {len(matches)} catalog entries (one per video)")
+        stills_index = {}
+    else:
+        info(_c("Scanning stills folders...", "bold"))
+        stills_index = scan_stills(*stills_dirs, recursive=not args.no_recursive)
+        info(f"  Found {sum(len(v) for v in stills_index.values())} stills across {len(stills_index)} unique stubs")
 
-    info(_c("Scanning videos folder...", "bold"))
-    videos = scan_videos(args.videos, recursive=not args.no_recursive)
-    info(f"  Found {len(videos)} videos")
+        info(_c("Scanning videos folder...", "bold"))
+        videos = scan_videos(args.videos, recursive=not args.no_recursive)
+        info(f"  Found {len(videos)} videos")
 
-    info(_c("Matching videos to stills...", "bold"))
-    matches, unmatched = match_videos_to_stills(stills_index, videos)
-    info(f"  {len(matches)} stubs matched ({sum(len(m.videos) for m in matches)} video matches)")
-    info(f"  {len(unmatched)} videos unmatched")
+        info(_c("Matching videos to stills...", "bold"))
+        matches, unmatched = match_videos_to_stills(stills_index, videos)
+        info(f"  {len(matches)} stubs matched ({sum(len(m.videos) for m in matches)} video matches)")
+        info(f"  {len(unmatched)} videos unmatched")
 
     # Build canonical-still picker (CLI lets user pass --prefer-folder N times for
     # priority order, default is empty so non-copy wins).
@@ -124,11 +141,13 @@ def cmd_scan(args: argparse.Namespace) -> int:
         return pick_canonical_still(stills, prefer_folders=prefer)
 
     # Build UI dataset (no AI names yet)
+    stills_root_for_ds = stills_dirs[0] if stills_dirs else args.videos
     dataset = ui.matches_to_ui_dataset(
-        matches, stills_root=stills_dirs[0], videos_root=args.videos,
+        matches, stills_root=stills_root_for_ds, videos_root=args.videos,
         project_root=out_dir, canonical_picker=picker,
         suggested_names={},
     )
+    dataset["mode"] = "videos-only" if videos_only else "stills+videos"
 
     # Initial suggested_name: derive from still filename when it looks descriptive,
     # else fallback to stub.
@@ -153,30 +172,46 @@ def cmd_scan(args: argparse.Namespace) -> int:
             json.dump([{"filename": v.filename, "rel_path": v.rel_path} for v in unmatched], f, indent=2)
         info(f"  Wrote {unmatched_path}")
 
-    # Generate thumbnails
-    info(_c("Generating still thumbnails...", "bold"))
-    still_tasks = []
-    for e in dataset["entries"]:
-        if not e["still_thumb"] or not e["canonical_still_rel"]:
-            continue
-        src = os.path.join(out_dir, e["canonical_still_rel"])
-        # canonical_still_rel is relative to project_root; but that's a rel path
-        # of an absolute still path... We stored it relative to project_root,
-        # so reconstruct the absolute path from our matches.
-        # Simpler: look it up in original stills_index by stub.
-        for s in stills_index.get(e["stub"], []):
-            if os.path.relpath(s.abs_path, out_dir) == e["canonical_still_rel"]:
-                src = s.abs_path
-                break
-        dst = os.path.join(out_dir, e["still_thumb"])
-        still_tasks.append((src, dst))
-
     def _progress(done, total):
         if done % 25 == 0 or done == total:
             print(f"  {done}/{total}", end="\r")
-    ok, fail = batch_make_still_thumbs(still_tasks, max_workers=args.workers, on_progress=_progress)
-    print()
-    info(f"  Stills: {ok} ok, {fail} failed")
+
+    if videos_only:
+        info(_c("Extracting 3 frames per video (start/mid/end)...", "bold"))
+        from .thumbnailer import extract_three_frames
+        three_frames_dir = os.path.join(out_dir, "thumbs", "video_frames")
+        os.makedirs(three_frames_dir, exist_ok=True)
+        three_ok = 0
+        for e in dataset["entries"]:
+            vid = e["videos"][0]
+            src = next((v.abs_path for v in videos if v.filename == vid["filename"]), None)
+            if not src:
+                continue
+            frames = extract_three_frames(src, three_frames_dir, e["id"])
+            # Use the mid frame as the entry's still thumbnail for review-UI preview
+            if frames.get("mid"):
+                e["still_thumb"] = os.path.relpath(frames["mid"], out_dir)
+                e["canonical_still_rel"] = e["still_thumb"]
+                three_ok += 1
+            # Record the 3 frame paths in the entry for the ai-name step
+            e["_video_frames"] = {k: os.path.relpath(p, out_dir) for k, p in frames.items()}
+        info(f"  Frames extracted for {three_ok}/{len(dataset['entries'])} videos")
+    else:
+        info(_c("Generating still thumbnails...", "bold"))
+        still_tasks = []
+        for e in dataset["entries"]:
+            if not e["still_thumb"] or not e["canonical_still_rel"]:
+                continue
+            src = os.path.join(out_dir, e["canonical_still_rel"])
+            for s in stills_index.get(e["stub"], []):
+                if os.path.relpath(s.abs_path, out_dir) == e["canonical_still_rel"]:
+                    src = s.abs_path
+                    break
+            dst = os.path.join(out_dir, e["still_thumb"])
+            still_tasks.append((src, dst))
+        ok, fail = batch_make_still_thumbs(still_tasks, max_workers=args.workers, on_progress=_progress)
+        print()
+        info(f"  Stills: {ok} ok, {fail} failed")
 
     info(_c("Extracting video frame thumbnails...", "bold"))
     vid_tasks = []
@@ -224,23 +259,43 @@ def cmd_ai_name(args: argparse.Namespace) -> int:
     except (ImportError, RuntimeError, ValueError) as e:
         err(str(e)); return 2
 
-    # Build (id, thumb_path) tasks - prefer canonical still thumb if exists
-    items = []
+    # Multi-image path for videos-only mode: feed all 3 frames per video to
+    # the AI so it can name the video as a whole. Falls back to single-image
+    # mode for the standard stills+videos flow.
+    is_videos_only = dataset.get("mode") == "videos-only"
+    items_multi: list[tuple[str, list[str]]] = []
+    items_single: list[tuple[str, str]] = []
     for e in dataset["entries"]:
+        if is_videos_only and e.get("_video_frames"):
+            paths = [os.path.join(out_dir, p) for p in e["_video_frames"].values() if p]
+            paths = [p for p in paths if os.path.exists(p)]
+            if paths:
+                items_multi.append((e["id"], paths))
+                continue
         if e["still_thumb"]:
             thumb_abs = os.path.join(out_dir, e["still_thumb"])
             if os.path.exists(thumb_abs):
-                items.append((e["id"], thumb_abs))
+                items_single.append((e["id"], thumb_abs))
 
-    if not items:
+    total = len(items_multi) + len(items_single)
+    if total == 0:
         err("No thumbnails to analyze. Run 'scan' first."); return 2
 
-    info(_c(f"Naming {len(items)} entries via {args.provider} ({client.model})...", "bold"))
+    info(_c(f"Naming {total} entries via {args.provider} ({client.model})...", "bold"))
 
-    def _progress(done, total, _id, name):
-        print(f"  {done}/{total}: {_id} -> {_c(name, 'green')}")
+    def _progress(done, t, _id, name):
+        print(f"  {done}/{t}: {_id} -> {_c(name, 'green')}")
 
-    raw_names = naming.ai_name_batch(client, items, max_workers=args.workers, on_progress=_progress)
+    raw_names: dict[str, str] = {}
+    if items_multi:
+        from .ai.base import VIDEO_NAMING_PROMPT
+        raw_names.update(naming.ai_name_batch_multi(
+            client, items_multi, prompt=VIDEO_NAMING_PROMPT,
+            max_workers=args.workers, on_progress=_progress))
+    if items_single:
+        raw_names.update(naming.ai_name_batch(
+            client, items_single,
+            max_workers=args.workers, on_progress=_progress))
     info(f"\nReceived {len(raw_names)}/{len(items)} names. Deduplicating...")
     final_names = naming.disambiguate_names(raw_names)
 
@@ -353,8 +408,9 @@ def cmd_apply(args: argparse.Namespace) -> int:
         warn("\nDry-run complete. Pass --execute to apply.")
         return 0
 
-    good(f"\nExecuting {len(plan.ops)} renames...")
-    ok, failed, undo_path = apply_mod.execute_plan(plan, undo_log_dir=out_dir)
+    op = getattr(args, "operation", "rename")
+    good(f"\nExecuting {len(plan.ops)} {op} ops...")
+    ok, failed, undo_path = apply_mod.execute_plan(plan, undo_log_dir=out_dir, operation=op)
     good(f"Done. Succeeded: {ok}, Failed: {failed}")
     info(f"Undo log: {undo_path}")
     info(f"To undo: zoho-video-renamer undo --log {undo_path} --execute")
@@ -418,10 +474,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     # scan
     sp = sub.add_parser("scan", help="Walk folders, build matches.json, generate thumbnails.")
-    sp.add_argument("-s", "--stills", action="append", required=True,
-                    help="Stills directory. Pass multiple times for multiple folders.")
+    sp.add_argument("-s", "--stills", action="append",
+                    help="Stills directory. Pass multiple times for multiple folders. Omit when using --videos-only.")
     sp.add_argument("-v", "--videos", required=True, help="Videos directory.")
     sp.add_argument("-o", "--output", default="./review", help="Project output dir (default ./review).")
+    sp.add_argument("--videos-only", action="store_true",
+                    help="Catalog mode: no stills folder needed. AI looks at 3 frames "
+                         "(start/mid/end) per video to propose names.")
     sp.add_argument("--no-recursive", action="store_true", help="Do not recurse into subdirectories.")
     sp.add_argument("--prefer-folder", action="append",
                     help="Substring of folder path to prefer when picking a canonical still. Pass multiple in priority order.")
@@ -450,6 +509,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="Path to rename-approvals.json (exported from review UI).")
     sp.add_argument("--execute", action="store_true",
                     help="Actually rename. Without this flag, runs as dry-run.")
+    sp.add_argument("--operation", choices=["rename", "copy", "move"], default="rename",
+                    help="rename: in-place os.rename (default). copy: shutil.copy2, originals preserved. "
+                         "move: shutil.move, works across filesystems and removes originals.")
     sp.set_defaults(func=cmd_apply)
 
     # regen-html

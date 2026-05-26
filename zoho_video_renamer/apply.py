@@ -55,14 +55,25 @@ def build_plan(approvals: dict, project_root: str) -> PlanResult:
     return PlanResult(ops=ops, collisions=collisions, missing_sources=missing)
 
 
-def execute_plan(plan: PlanResult, undo_log_dir: str) -> tuple[int, int, str]:
-    """Apply the rename ops. Writes an undo log even on partial failure.
+def execute_plan(plan: PlanResult, undo_log_dir: str, operation: str = "rename") -> tuple[int, int, str]:
+    """Apply the plan with the given operation.
+
+    operation: 'rename' (default, in-place os.rename), 'copy' (shutil.copy2 —
+    originals preserved), or 'move' (shutil.move — works across filesystems).
+
+    For 'copy', the undo log only allows deleting the new copies (we record
+    the destination paths). For 'move' and 'rename', the undo log reverses
+    the move.
 
     Returns (succeeded, failed, undo_log_path).
     """
+    import shutil
     os.makedirs(undo_log_dir, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     undo_path = os.path.join(undo_log_dir, f"rename-undo-{ts}.json")
+
+    if operation not in ("rename", "copy", "move"):
+        raise ValueError(f"Unknown operation {operation!r}; use rename / copy / move")
 
     completed: list[dict] = []
     ok = 0
@@ -71,26 +82,36 @@ def execute_plan(plan: PlanResult, undo_log_dir: str) -> tuple[int, int, str]:
         for op in plan.ops:
             try:
                 os.makedirs(os.path.dirname(op.dst), exist_ok=True)
-                os.rename(op.src, op.dst)
-                # Record reversed (dst -> src) so undo can re-apply easily
+                if operation == "rename":
+                    os.rename(op.src, op.dst)
+                elif operation == "move":
+                    shutil.move(op.src, op.dst)
+                elif operation == "copy":
+                    shutil.copy2(op.src, op.dst)
+                # Record reversed (dst -> src) so undo can re-apply easily.
+                # For 'copy' we record the dest path with operation='copy' so
+                # undo knows it should delete the copy rather than move it back.
                 completed.append({
                     "from": op.dst, "to": op.src,
                     "kind": op.kind, "note": op.note,
+                    "operation": operation,
                 })
                 ok += 1
             except OSError as e:
                 failed += 1
                 completed.append({
                     "from": op.src, "to": op.dst, "kind": op.kind,
-                    "error": str(e), "note": op.note,
+                    "error": str(e), "note": op.note, "operation": operation,
                 })
     finally:
         with open(undo_path, "w") as f:
             json.dump({
                 "created_at": ts,
+                "operation": operation,
                 "renames": [c for c in completed if "error" not in c],
                 "failures": [c for c in completed if "error" in c],
-                "note": "To undo: each entry's 'from' is the current path; rename it back to 'to'.",
+                "note": ("To undo: rename/move each entry's 'from' back to 'to'. For 'copy' "
+                         "operations the originals were preserved, so undo deletes the copies."),
             }, f, indent=2)
 
     return ok, failed, undo_path

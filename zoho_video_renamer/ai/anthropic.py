@@ -32,21 +32,19 @@ class AnthropicVisionClient(VisionClient):
         self.model = model or os.environ.get("ZVR_ANTHROPIC_MODEL") or DEFAULT_MODEL
         self.max_tokens = max_tokens
 
-    def name_image(self, image_path: str, prompt: str = DEFAULT_NAMING_PROMPT) -> NameResult:
+    def name_images(self, image_paths: list[str], prompt: str = DEFAULT_NAMING_PROMPT) -> NameResult:
         try:
-            b64, media_type = encode_image_b64(image_path)
+            content = []
+            for path in image_paths:
+                b64, media_type = encode_image_b64(path)
+                content.append({"type": "image", "source": {
+                    "type": "base64", "media_type": media_type, "data": b64,
+                }})
+            content.append({"type": "text", "text": prompt})
             msg = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "source": {
-                            "type": "base64", "media_type": media_type, "data": b64,
-                        }},
-                        {"type": "text", "text": prompt},
-                    ],
-                }],
+                messages=[{"role": "user", "content": content}],
             )
             text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
             name = _clean_name(text)

@@ -118,6 +118,8 @@ class App:
         self.provider = tk.StringVar(value="(none — use existing names)")
         self.api_key = tk.StringVar()
         self.model_override = tk.StringVar()
+        self.videos_only = tk.BooleanVar(value=False)
+        self.output_mode = tk.StringVar(value="rename (in place)")
 
         self._build_ui()
         self._check_environment()
@@ -136,13 +138,35 @@ class App:
                  text="Match videos to source stills, propose names, review, then bulk-rename.",
                  bg=BG, fg=MUTED, font=("-apple-system", 12)).pack(anchor="w", pady=(2, 0))
 
+        # Mode toggle
+        mode_row = tk.Frame(self.root, bg=BG)
+        mode_row.pack(fill="x", padx=20, pady=(8, 0))
+        cb = tk.Checkbutton(mode_row, text="  Videos only (catalog mode — AI names each video by looking at 3 frames)",
+                             variable=self.videos_only, bg=BG, fg=TEXT, selectcolor=PANEL2,
+                             activebackground=BG, activeforeground=TEXT,
+                             font=("-apple-system", 12, "bold"),
+                             command=self._on_mode_toggle)
+        cb.pack(anchor="w")
+
         # Folder pickers
-        self._folder_row("Stills folder", self.stills_dir,
-                         "Folder containing source images (PNG, JPG, etc.)")
+        self._stills_row_widgets = self._folder_row("Stills folder", self.stills_dir,
+                         "Folder containing source images (PNG, JPG, etc.) — not needed in videos-only mode.")
         self._folder_row("Videos folder", self.videos_dir,
                          "Folder containing the videos to rename.")
         self._folder_row("Output / review folder", self.output_dir,
                          "Where the review UI + undo log go. Will be created if missing.")
+
+        # Output mode (how to apply the renames)
+        op_row = tk.Frame(self.root, bg=BG)
+        op_row.pack(fill="x", padx=20, pady=(4, 0))
+        tk.Label(op_row, text="Apply operation:", bg=BG, fg=TEXT,
+                 font=("-apple-system", 12, "bold")).pack(side="left")
+        op_menu = ttk.Combobox(op_row, textvariable=self.output_mode, state="readonly",
+                               values=["rename (in place)",
+                                       "copy (keep originals, new files in new folder)",
+                                       "move (originals leave source folder)"],
+                               width=50)
+        op_menu.pack(side="left", padx=10)
 
         # AI section
         ai_frame = tk.LabelFrame(self.root, text="  AI naming (optional)  ",
@@ -218,6 +242,15 @@ class App:
                     ).pack(side="left", padx=4)
         tk.Label(outer, text=hint, bg=BG, fg=MUTED, font=("-apple-system", 10),
                  anchor="w").pack(anchor="w")
+        return outer
+
+    def _on_mode_toggle(self):
+        """Hide/show the stills folder when toggling videos-only mode."""
+        if self.videos_only.get():
+            self._stills_row_widgets.pack_forget()
+        else:
+            self._stills_row_widgets.pack(fill="x", padx=20, pady=4, before=None)
+            # Re-pack at the right position is tricky with tk; user can scroll if needed.
 
     def _pick(self, var: tk.StringVar):
         d = filedialog.askdirectory(initialdir=var.get() or os.path.expanduser("~"))
@@ -253,8 +286,9 @@ class App:
         stills = self.stills_dir.get().strip()
         videos = self.videos_dir.get().strip()
         out = self.output_dir.get().strip()
-        if not stills or not os.path.isdir(stills):
-            messagebox.showerror("Missing folder", "Pick a valid stills folder.")
+        videos_only = self.videos_only.get()
+        if not videos_only and (not stills or not os.path.isdir(stills)):
+            messagebox.showerror("Missing folder", "Pick a valid stills folder, or check 'Videos only'.")
             return
         if not videos or not os.path.isdir(videos):
             messagebox.showerror("Missing folder", "Pick a valid videos folder.")
@@ -264,23 +298,33 @@ class App:
             return
 
         self.start_btn.configure_state(False, text="Working…")
-        t = threading.Thread(target=self._run, args=(stills, videos, out), daemon=True)
+        t = threading.Thread(target=self._run, args=(stills, videos, out, videos_only), daemon=True)
         t.start()
 
-    def _run(self, stills_dir: str, videos_dir: str, out_dir: str):
+    def _run(self, stills_dir: str, videos_dir: str, out_dir: str, videos_only: bool = False):
         try:
             self._log("\n" + "=" * 60)
-            self._log("Scanning stills...")
-            stills_index = scan_stills(stills_dir, recursive=True)
-            self._log(f"  Found {sum(len(v) for v in stills_index.values())} stills across {len(stills_index)} stubs.")
+            if videos_only:
+                self._log("Videos-only mode (catalog).")
+                stills_index = {}
+            else:
+                self._log("Scanning stills...")
+                stills_index = scan_stills(stills_dir, recursive=True)
+                self._log(f"  Found {sum(len(v) for v in stills_index.values())} stills across {len(stills_index)} stubs.")
 
             self._log("Scanning videos...")
             videos = scan_videos(videos_dir, recursive=True)
             self._log(f"  Found {len(videos)} videos.")
 
-            self._log("Matching...")
-            matches, unmatched = match_videos_to_stills(stills_index, videos)
-            self._log(f"  Matched {len(matches)} stubs, {len(unmatched)} videos unmatched.")
+            if videos_only:
+                from .matcher import scan_videos_only
+                matches = scan_videos_only(videos)
+                unmatched = []
+                self._log(f"  Cataloging {len(matches)} videos as individual entries.")
+            else:
+                self._log("Matching...")
+                matches, unmatched = match_videos_to_stills(stills_index, videos)
+                self._log(f"  Matched {len(matches)} stubs, {len(unmatched)} videos unmatched.")
 
             os.makedirs(os.path.join(out_dir, "thumbs", "stills"), exist_ok=True)
             os.makedirs(os.path.join(out_dir, "thumbs", "videos"), exist_ok=True)
@@ -289,36 +333,59 @@ class App:
                 return pick_canonical_still(stills)
 
             dataset = ui.matches_to_ui_dataset(
-                matches, stills_root=stills_dir, videos_root=videos_dir,
+                matches, stills_root=stills_dir or videos_dir, videos_root=videos_dir,
                 project_root=out_dir, canonical_picker=picker,
                 suggested_names={},
             )
-            for entry in dataset["entries"]:
-                if entry.get("canonical_still_rel"):
-                    stem = os.path.splitext(os.path.basename(entry["canonical_still_rel"]))[0]
-                    cleaned = naming.name_from_still_filename(stem + ".png")
-                    if naming.looks_like_descriptive_name(cleaned):
-                        entry["suggested_name"] = cleaned
+            dataset["mode"] = "videos-only" if videos_only else "stills+videos"
+            if not videos_only:
+                for entry in dataset["entries"]:
+                    if entry.get("canonical_still_rel"):
+                        stem = os.path.splitext(os.path.basename(entry["canonical_still_rel"]))[0]
+                        cleaned = naming.name_from_still_filename(stem + ".png")
+                        if naming.looks_like_descriptive_name(cleaned):
+                            entry["suggested_name"] = cleaned
+
+            if videos_only:
+                # Extract 3 frames per video (start/mid/end)
+                self._log("Extracting 3 frames per video (start/mid/end)...")
+                from .thumbnailer import extract_three_frames
+                three_frames_dir = os.path.join(out_dir, "thumbs", "video_frames")
+                os.makedirs(three_frames_dir, exist_ok=True)
+                three_ok = 0
+                for e in dataset["entries"]:
+                    vid = e["videos"][0]
+                    src = next((v.abs_path for v in videos if v.filename == vid["filename"]), None)
+                    if not src:
+                        continue
+                    frames = extract_three_frames(src, three_frames_dir, e["id"])
+                    if frames.get("mid"):
+                        e["still_thumb"] = os.path.relpath(frames["mid"], out_dir)
+                        e["canonical_still_rel"] = e["still_thumb"]
+                        three_ok += 1
+                    e["_video_frames"] = {k: os.path.relpath(p, out_dir) for k, p in frames.items()}
+                self._log(f"  3-frame extraction OK for {three_ok}/{len(dataset['entries'])} videos")
 
             import json
             with open(os.path.join(out_dir, "matches.json"), "w") as f:
                 json.dump(dataset, f, indent=2, default=str)
             self._log("  Wrote matches.json")
 
-            # Thumbnails
-            self._log("Generating still thumbnails...")
-            still_tasks = []
-            for e in dataset["entries"]:
-                if not e["canonical_still_rel"]:
-                    continue
-                src = next((s.abs_path for s in stills_index.get(e["stub"], [])
-                            if os.path.relpath(s.abs_path, out_dir) == e["canonical_still_rel"]), None)
-                if not src and stills_index.get(e["stub"]):
-                    src = stills_index[e["stub"]][0].abs_path
-                if src:
-                    still_tasks.append((src, os.path.join(out_dir, e["still_thumb"])))
-            ok, fail = batch_make_still_thumbs(still_tasks, max_workers=4)
-            self._log(f"  {ok} ok, {fail} failed")
+            if not videos_only:
+                # Generate still thumbnails (from real stills)
+                self._log("Generating still thumbnails...")
+                still_tasks = []
+                for e in dataset["entries"]:
+                    if not e["canonical_still_rel"]:
+                        continue
+                    src = next((s.abs_path for s in stills_index.get(e["stub"], [])
+                                if os.path.relpath(s.abs_path, out_dir) == e["canonical_still_rel"]), None)
+                    if not src and stills_index.get(e["stub"]):
+                        src = stills_index[e["stub"]][0].abs_path
+                    if src:
+                        still_tasks.append((src, os.path.join(out_dir, e["still_thumb"])))
+                ok, fail = batch_make_still_thumbs(still_tasks, max_workers=4)
+                self._log(f"  {ok} ok, {fail} failed")
 
             self._log("Extracting video frames...")
             vid_tasks = []
@@ -340,13 +407,29 @@ class App:
                     self._log(f"Calling {provider} for name suggestions...")
                     try:
                         from .ai import get_client
+                        from .ai.base import VIDEO_NAMING_PROMPT
                         client = get_client(provider, api_key=key,
                                             model=self.model_override.get().strip() or None)
-                        items = [(e["id"], os.path.join(out_dir, e["still_thumb"]))
-                                 for e in dataset["entries"]
-                                 if e["still_thumb"] and os.path.exists(os.path.join(out_dir, e["still_thumb"]))]
-                        raw_names = naming.ai_name_batch(client, items, max_workers=3,
-                                                         on_progress=lambda d, t, _id, n: self._log(f"  {d}/{t}: {_id} -> {n}"))
+                        raw_names: dict = {}
+                        if videos_only:
+                            # Multi-image: pass all 3 frames per video to the AI
+                            items_multi = []
+                            for e in dataset["entries"]:
+                                if e.get("_video_frames"):
+                                    paths = [os.path.join(out_dir, p) for p in e["_video_frames"].values() if p]
+                                    paths = [p for p in paths if os.path.exists(p)]
+                                    if paths:
+                                        items_multi.append((e["id"], paths))
+                            if items_multi:
+                                raw_names = naming.ai_name_batch_multi(
+                                    client, items_multi, prompt=VIDEO_NAMING_PROMPT, max_workers=3,
+                                    on_progress=lambda d, t, _id, n: self._log(f"  {d}/{t}: {_id} -> {n}"))
+                        else:
+                            items = [(e["id"], os.path.join(out_dir, e["still_thumb"]))
+                                     for e in dataset["entries"]
+                                     if e["still_thumb"] and os.path.exists(os.path.join(out_dir, e["still_thumb"]))]
+                            raw_names = naming.ai_name_batch(client, items, max_workers=3,
+                                                             on_progress=lambda d, t, _id, n: self._log(f"  {d}/{t}: {_id} -> {n}"))
                         final = naming.disambiguate_names(raw_names)
                         for e in dataset["entries"]:
                             if e["id"] in final:

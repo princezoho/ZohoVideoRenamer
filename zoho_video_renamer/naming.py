@@ -64,6 +64,38 @@ def disambiguate_names(name_by_id: dict[str, str]) -> dict[str, str]:
     return out
 
 
+def ai_name_batch_multi(
+    client: VisionClient,
+    items: list[tuple[str, list[str]]],  # (id, [image_path, ...])
+    prompt: str = DEFAULT_NAMING_PROMPT,
+    max_workers: int = 4,
+    on_progress: Optional[Callable[[int, int, str, str], None]] = None,
+) -> dict[str, str]:
+    """Like ai_name_batch but each entry can supply multiple images per request.
+
+    Used by videos-only mode where each video produces 3 frames (start/mid/end)
+    that are sent to the AI as a single multi-image prompt.
+    """
+    out: dict[str, str] = {}
+    total = len(items)
+    done = 0
+
+    def _do(item):
+        _id, paths = item
+        return _id, client.name_images([p for p in paths if p], prompt=prompt)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = [ex.submit(_do, it) for it in items]
+        for fut in as_completed(futures):
+            _id, result = fut.result()
+            done += 1
+            if result.name and not result.error:
+                out[_id] = result.name
+            if on_progress:
+                on_progress(done, total, _id, result.name or "(failed)")
+    return out
+
+
 def ai_name_batch(
     client: VisionClient,
     items: list[tuple[str, str]],  # (id, image_path)

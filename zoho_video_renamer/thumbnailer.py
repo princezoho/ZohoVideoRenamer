@@ -158,6 +158,38 @@ def batch_make_still_thumbs(
     return ok, fail
 
 
+def extract_three_frames(
+    src: str,
+    dst_dir: str,
+    base_id: str,
+    max_width: int = 400,
+) -> dict[str, str]:
+    """Extract start/middle/end frames from a video.
+
+    Returns {"start": path, "mid": path, "end": path} for frames that
+    successfully extracted (missing keys for any that failed).
+
+    Used by the videos-only catalog mode: the AI looks at all three frames
+    when proposing a name, which produces much better names for videos that
+    transition between scenes than a single-frame approach.
+    """
+    os.makedirs(dst_dir, exist_ok=True)
+    # ffprobe is optional; fall back to a reasonable default if unavailable.
+    dur = get_video_duration(src)
+    if dur is None or dur <= 0:
+        # Without duration we can still get a "start" frame; mid/end use
+        # progressively later seeks that ffmpeg silently clamps to last frame.
+        dur = 30.0
+
+    out: dict[str, str] = {}
+    for label, frac in (("start", 0.05), ("mid", 0.50), ("end", 0.95)):
+        seek = max(0.0, min(dur - 0.1, dur * frac))
+        dst = os.path.join(dst_dir, f"{base_id}_{label}.jpg")
+        if extract_video_frame(src, dst, seek_seconds=seek, max_width=max_width):
+            out[label] = dst
+    return out
+
+
 def batch_extract_video_frames(
     tasks: list[tuple[str, str, float]],
     max_workers: int = 4,

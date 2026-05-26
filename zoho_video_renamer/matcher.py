@@ -222,6 +222,23 @@ def match_videos_to_stills(
     return matches, unmatched
 
 
+def scan_videos_only(videos: list[Video]) -> list[Match]:
+    """Build one Match per video, with no stills attached.
+
+    Used by the 'catalog' / videos-only mode where the user has no source
+    stills and just wants AI to look at each video and propose a name.
+
+    The stub is derived from the filename (extension stripped) so the entry
+    ID is stable across rescans. There is exactly one video per Match and the
+    stills list is always empty.
+    """
+    matches: list[Match] = []
+    for v in videos:
+        stub = os.path.splitext(v.filename)[0]
+        matches.append(Match(stub=stub, stills=[], videos=[v]))
+    return matches
+
+
 def pick_canonical_still(stills: list[Still], prefer_folders: Iterable[str] = ()) -> Optional[Still]:
     """Pick the 'best' still to represent a stub for preview purposes.
 

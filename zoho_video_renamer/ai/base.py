@@ -42,10 +42,28 @@ def encode_image_b64(path: str) -> tuple[str, str]:
         return base64.standard_b64encode(f.read()).decode("ascii"), media_type
 
 
+VIDEO_NAMING_PROMPT = """You are naming a video file based on what's shown in it. Below are 1-3 frames extracted from the video (in chronological order: start, middle, end if multiple are provided).
+
+Look at the frames and produce a SHORT descriptive name for the overall video.
+
+Rules (strict):
+- Exactly 3 English words, joined with hyphens. Example: `sunset-mountain-timelapse`, `kitchen-cooking-pasta`, `dog-running-beach`.
+- All lowercase letters and hyphens only. No numbers, no punctuation, no spaces.
+- Describe the VIDEO content as a whole: subject + action/setting + a defining detail.
+- If the frames show a clear transition (e.g. day to night, before/after), reflect that.
+- Avoid generic words like "video", "clip", "scene", "footage".
+
+Output ONLY the 3-word name on a single line. No explanation, no punctuation, no quotes."""
+
+
 class VisionClient(ABC):
     """Vision-API client that proposes names for images."""
 
     @abstractmethod
-    def name_image(self, image_path: str, prompt: str = DEFAULT_NAMING_PROMPT) -> NameResult:
-        """Look at one image, return one NameResult."""
+    def name_images(self, image_paths: list[str], prompt: str = DEFAULT_NAMING_PROMPT) -> NameResult:
+        """Look at one or more images (jointly), return one NameResult."""
         ...
+
+    def name_image(self, image_path: str, prompt: str = DEFAULT_NAMING_PROMPT) -> NameResult:
+        """Convenience wrapper: name a single image. Backwards-compatible API."""
+        return self.name_images([image_path], prompt)

@@ -31,20 +31,17 @@ class OpenAIVisionClient(VisionClient):
         self.model = model or os.environ.get("ZVR_OPENAI_MODEL") or DEFAULT_MODEL
         self.max_tokens = max_tokens
 
-    def name_image(self, image_path: str, prompt: str = DEFAULT_NAMING_PROMPT) -> NameResult:
+    def name_images(self, image_paths: list[str], prompt: str = DEFAULT_NAMING_PROMPT) -> NameResult:
         try:
-            b64, media_type = encode_image_b64(image_path)
-            data_url = f"data:{media_type};base64,{b64}"
+            content = [{"type": "text", "text": prompt}]
+            for path in image_paths:
+                b64, media_type = encode_image_b64(path)
+                data_url = f"data:{media_type};base64,{b64}"
+                content.append({"type": "image_url", "image_url": {"url": data_url}})
             resp = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": data_url}},
-                    ],
-                }],
+                messages=[{"role": "user", "content": content}],
             )
             text = (resp.choices[0].message.content or "").strip()
             return NameResult(name=_clean_name(text), raw_response=text)
