@@ -23,16 +23,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Intel macOS (older Macs + anything that doesn't run arm64 binaries)
-          - os: macos-13
-            artifact_name: ZohoVideoRenamer-macOS-Intel
-            binary_name: ZohoVideoRenamer
-            arch_suffix: "-Intel"
-          # Apple Silicon macOS (M1/M2/M3/M4 Macs)
+          # Apple Silicon macOS (M1/M2/M3/M4 — covers 95%+ of Macs sold since 2020).
+          # macos-13 Intel was dropped because the runners are scarce on the free tier
+          # and were blocking releases for hours. Re-add via PR when there's real
+          # demand for an Intel build.
           - os: macos-14
-            artifact_name: ZohoVideoRenamer-macOS-AppleSilicon
+            artifact_name: ZohoVideoRenamer-macOS
             binary_name: ZohoVideoRenamer
-            arch_suffix: "-AppleSilicon"
+            arch_suffix: ""
           - os: windows-latest
             artifact_name: ZohoVideoRenamer-Windows
             binary_name: ZohoVideoRenamer.exe
