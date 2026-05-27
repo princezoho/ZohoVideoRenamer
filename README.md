@@ -6,7 +6,7 @@
 
 **🌐 [Landing page](https://princezoho.github.io/ZohoVideoRenamer/) · 💾 [Latest release](https://github.com/princezoho/ZohoVideoRenamer/releases/latest) · 📦 [Install via pip](#install)**
 
-Match a folder of **videos** to a folder of **source stills**, propose descriptive names (from the still's existing filename OR via an AI vision API), review every pairing in a browser UI, and bulk-rename everything with a full undo log.
+Single-window desktop app that bulk-renames AI-generated videos. Open the app, pick your folders, paste an AI key (optional), click Start. AI proposes 3-word descriptive names, you review and approve in the same window, files get renamed. Full undo log. No browser, no terminal, no JSON wrangling.
 
 ![Screenshot of the review UI](docs/screenshots/03-three-videos.png)
 
@@ -58,15 +58,20 @@ pip install anthropic    # for Anthropic Claude
 pip install openai       # for OpenAI GPT-4o
 ```
 
-## Quickstart (GUI)
+## Quickstart (desktop app — recommended)
 
-```bash
-zoho-video-renamer-gui
-```
+1. Download the `.dmg` (macOS) or `.exe` (Windows) from the [latest release](https://github.com/princezoho/ZohoVideoRenamer/releases/latest).
+2. Open the app.
+3. Pick your **videos** folder (and a **stills** folder, if you have one — otherwise toggle "Videos-only" mode).
+4. Paste your [Anthropic](https://console.anthropic.com) or [OpenAI](https://platform.openai.com) API key (optional but recommended for descriptive names).
+5. Click **▶ Start**.
+6. The window switches to the review screen with AI-proposed names already filled in. Hit `Enter` through each entry, edit any wrong names, click-toggle to exclude wrong video matches.
+7. Click **✓ Approve & Rename All** at the bottom of the sidebar.
+8. Confirm the rename. Files get renamed. Undo log saved. Done.
 
-A native window opens. Pick your stills folder, pick your videos folder, optionally enter an AI key, hit Start. The review UI opens automatically when scanning completes.
+No browser tabs, no JSON export, no terminal commands. Everything happens in the app window.
 
-## Quickstart (CLI)
+## Quickstart (CLI — for scripting)
 
 ```bash
 # 1. Scan: walk both folders, match videos to stills, build thumbnails

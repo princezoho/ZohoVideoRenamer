@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ZohoVideoRenamer — Match AI-generated videos to their source stills, automatically</title>
-<meta name="description" content="Open-source tool for bulk-renaming AI-generated videos. Matches videos to source stills, proposes descriptive names with vision AI, lets you review in a browser, then bulk-renames with full undo support.">
+<meta name="description" content="Open-source desktop app for bulk-renaming AI-generated videos. One window: pick folders, AI proposes names, review and approve, files renamed. Full undo. macOS + Windows. Bring your own AI key.">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/logo-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/logo-16.png">
 <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
@@ -180,11 +180,11 @@
 
 <header class="hero container">
   <img class="hero-logo" src="assets/logo-256.png" alt="ZohoVideoRenamer mascot">
-  <span class="badge">Open Source · Bring Your Own AI Key</span>
+  <span class="badge">Open Source · One Window · Bring Your Own AI Key</span>
   <h1>Rename hundreds of AI-generated videos<br>in minutes, not hours.</h1>
   <p class="sub">
-    Match your AI-rendered videos to their source stills automatically, propose descriptive names with vision AI,
-    review every pairing in a browser, then bulk-rename with full undo.
+    Pick a folder. AI looks at each video and proposes a descriptive name. Review and approve in the same window.
+    Files get renamed. Full undo log. No browser, no terminal, no JSON files to wrangle.
   </p>
   <div class="ctas">
     <a href="#download" class="btn btn-primary">↓ Download app</a>
@@ -289,32 +289,28 @@
 <section id="how" class="section">
   <div class="container">
     <div class="eyebrow">How it works</div>
-    <h2>From folder full of garbage filenames to clean library in 4 steps.</h2>
-    <p class="desc">No subscriptions, no cloud uploads, no lock-in. Everything runs locally except the (optional) AI naming calls, which use your own API key.</p>
+    <h2>From folder of garbage filenames to clean library — in one window.</h2>
+    <p class="desc">No subscriptions, no cloud uploads, no lock-in. Everything runs locally except the (optional) AI naming calls, which use your own API key. No browser, no terminal, no JSON file wrangling.</p>
     <div class="steps">
       <div class="step">
         <span class="num">01</span>
-        <h3>Point at two folders</h3>
-        <p>Pick your stills folder and your videos folder. Hit scan. The tool extracts a stub from each video filename
-        and matches it to the right still — typically 90%+ on the first try.</p>
+        <h3>Open the app, pick folders</h3>
+        <p>Pick the folder with your videos (and stills, if you have them). Paste your Anthropic or OpenAI key if you want AI-generated descriptive names. Hit <strong>Start</strong>.</p>
       </div>
       <div class="step">
         <span class="num">02</span>
-        <h3>Names: yours or AI's</h3>
-        <p>If your stills are already nicely named (e.g. <code>mountain-sunset.png</code>), videos inherit those names.
-        Otherwise pass in an Anthropic or OpenAI key and the AI looks at each still and proposes a 3-word descriptive name.</p>
+        <h3>AI proposes names</h3>
+        <p>The app extracts frames from each video and an AI vision model proposes a 3-word descriptive name — <code>mountain-sunset-vista</code>, <code>desert-cactus-dawn</code>. You see them pre-filled in the next screen.</p>
       </div>
       <div class="step">
         <span class="num">03</span>
-        <h3>Review in a browser</h3>
-        <p>A self-contained HTML interface opens. See each still side-by-side with its matched videos, edit any name,
-        approve/skip/flag with one keypress. Decisions save automatically.</p>
+        <h3>Review in the same window</h3>
+        <p>The window switches to the review screen. Each entry shows the still next to its matched videos. Hit <kbd>Enter</kbd> to accept the AI name, edit any that need fixing, click-toggle to exclude wrong matches.</p>
       </div>
       <div class="step">
         <span class="num">04</span>
-        <h3>Bulk-rename safely</h3>
-        <p>Export approvals, run apply. Every file move is logged so a single command reverses the whole run
-        if something looks wrong.</p>
+        <h3>Click "Approve &amp; Rename All"</h3>
+        <p>One button. Files are renamed in place (or copied / moved to a new folder, your choice). A timestamped undo log lets you reverse the whole run if something looks off.</p>
       </div>
     </div>
   </div>
@@ -507,9 +503,9 @@ pip install <span class="accent">zoho-video-renamer[all]</span></pre>
 
 <section id="cli" class="section">
   <div class="container">
-    <div class="eyebrow">CLI usage</div>
-    <h2>Five commands, no surprises.</h2>
-    <p class="desc">If you'd rather skip the GUI, the same flow works as four CLI calls. Same end result, scriptable.</p>
+    <div class="eyebrow">For power users · scripts &amp; CI</div>
+    <h2>Same flow available as a CLI.</h2>
+    <p class="desc">Most people should just use the desktop app — everything happens in one window. But if you want to script this into a pipeline, integrate with CI, or batch-process many folders, the same engine ships as a CLI.</p>
 <pre class="code"><span class="comment"># 1. Walk both folders, match videos to stills, generate thumbnails</span>
 zoho-video-renamer scan \
   -s ~/Pictures/source-stills \
@@ -565,21 +561,30 @@ zoho-video-renamer undo --log ./review/rename-undo-*.json --execute</pre>
       </details>
       <details class="faq">
         <summary>What if I want to undo?</summary>
-        <div class="body">Every <code>apply --execute</code> writes a timestamped undo log to your project folder.
-          Run <code>zoho-video-renamer undo --log path/to/rename-undo-*.json --execute</code> and every move is reversed.
+        <div class="body">Every rename writes a timestamped <code>rename-undo-*.json</code> log to your output folder.
+          Power users can run <code>zoho-video-renamer undo --log path/to/rename-undo-*.json --execute</code> from a terminal to reverse every move.
+          (A one-click Undo button inside the app is on the roadmap.)
           The log records each rename as (current path → original path), so even partial-failure runs are reversible.</div>
       </details>
       <details class="faq">
         <summary>Does it work on Linux?</summary>
-        <div class="body">Yes — the Python package runs anywhere Python 3.9+ runs. The pre-built desktop app is only
-          shipped for macOS and Windows for now. Linux users can <code>pip install</code> and use either the CLI or the
-          tkinter GUI. AppImage builds may come later.</div>
+        <div class="body">The Python package runs anywhere Python 3.9+ runs. The desktop app uses pywebview which supports
+          macOS (WKWebView), Windows (WebView2), and Linux (GTK). Pre-built downloads ship for macOS and Windows;
+          Linux users can <code>pip install zoho-video-renamer[all]</code> and run <code>python -m zoho_video_renamer.embedded</code> to launch the same single-window app.</div>
+      </details>
+      <details class="faq">
+        <summary>Do I have to leave the app to use it?</summary>
+        <div class="body">No. Since v0.2.0 everything happens inside one native window — the setup form, the AI naming
+          step, the review of matched videos, and the final rename are all one continuous flow. No browser tabs,
+          no JSON files to export, no terminal commands. The old multi-step browser+CLI flow still works via the
+          CLI but the desktop app no longer needs any of that.</div>
       </details>
       <details class="faq">
         <summary>Will it overwrite my files?</summary>
         <div class="body">No. Every rename is checked for collisions before execution. If two source files would end up
-          at the same target path, the run aborts with a clear error rather than overwriting. The browser preview shows
-          you exactly what each file will be renamed to before you ever commit.</div>
+          at the same target path, the run aborts with a clear error rather than overwriting. The review screen shows
+          you exactly what each file will be renamed to before you ever commit. You can also pick "Copy to new folder"
+          mode which leaves your originals completely untouched.</div>
       </details>
       <details class="faq">
         <summary>Can I contribute?</summary>
