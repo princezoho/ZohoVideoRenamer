@@ -202,16 +202,22 @@ class App:
         model_entry.pack(side="left", fill="x", expand=True, padx=(4, 0))
         tk.Label(row, text="(optional override)", bg=BG, fg=MUTED, font=("-apple-system", 10)).pack(side="left", padx=(6, 0))
 
-        # Action row
+        # Action row — three buttons reflect the three steps of the flow
         action_row = tk.Frame(self.root, bg=BG)
         action_row.pack(fill="x", padx=20, pady=12)
-        self.start_btn = FlatButton(action_row, text="▶  Scan + Generate Review",
+        self.start_btn = FlatButton(action_row, text="①  Scan + Open Review",
                                      command=self._start, bg=ACCENT, fg="#1a1a1d")
         self.start_btn.pack(side="left")
-        FlatButton(action_row, text="Open last review",
+        FlatButton(action_row, text="②  Open last review",
                     command=self._open_review, bg=PANEL2, fg=TEXT,
                     padx=14, pady=10, font=("-apple-system", 12, "bold")
                     ).pack(side="left", padx=8)
+        self.apply_btn = FlatButton(action_row, text="③  Apply Renames",
+                                     command=self._apply_renames, bg=GOOD, fg="#0f1a10",
+                                     padx=18, pady=10, font=("-apple-system", 13, "bold"))
+        self.apply_btn.pack(side="left", padx=4)
+        tk.Label(action_row, text="  ① scan & name   →   ② review in browser, click Export   →   ③ rename for real",
+                 bg=BG, fg=MUTED, font=("-apple-system", 10)).pack(side="left", padx=10)
 
         # Log area
         tk.Label(self.root, text="Log:", bg=BG, fg=MUTED,
@@ -460,6 +466,132 @@ class App:
             webbrowser.open("file://" + html_path)
         else:
             messagebox.showinfo("No review yet", f"No index.html in:\n{self.output_dir.get()}\n\nRun a scan first.")
+
+    def _apply_renames(self):
+        """Find the user's exported rename-approvals.json, show a dry-run preview,
+        and on confirmation actually rename the files. End-to-end in the app —
+        no CLI needed."""
+        out_dir = self.output_dir.get().strip()
+        if not out_dir or not os.path.isdir(out_dir):
+            messagebox.showerror("No project folder", "Pick the output / review folder first.")
+            return
+
+        # Look for approvals JSON in: project folder, then ~/Downloads (browser default)
+        candidates = [
+            os.path.join(out_dir, "rename-approvals.json"),
+            os.path.join(os.path.expanduser("~"), "Downloads", "rename-approvals.json"),
+        ]
+        approvals_path = next((c for c in candidates if os.path.exists(c)), None)
+        if not approvals_path:
+            approvals_path = filedialog.askopenfilename(
+                title="Pick the rename-approvals.json you exported from the review UI",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+                initialdir=os.path.expanduser("~/Downloads"),
+            )
+            if not approvals_path:
+                return
+
+        # Load matches.json + approvals
+        import json
+        matches_path = os.path.join(out_dir, "matches.json")
+        if not os.path.exists(matches_path):
+            messagebox.showerror("Missing data", f"No matches.json in {out_dir}. Run scan first.")
+            return
+        with open(matches_path) as f:
+            dataset = json.load(f)
+        with open(approvals_path) as f:
+            approvals = json.load(f)
+
+        # Resolve project-relative paths back to absolute (same as cli.cmd_apply)
+        by_rel = {}
+        for e in dataset["entries"]:
+            for v in e["videos"]:
+                by_rel[v["rel_path"]] = v["abs_path"]
+            for s in e["all_still_files"]:
+                by_rel[s["rel_path"]] = s["abs_path"]
+
+        for entry in approvals.get("approved", []):
+            for r in entry.get("renames", []):
+                if r.get("skip"):
+                    continue
+                abs_src = by_rel.get(r["from"])
+                if abs_src:
+                    r["from"] = abs_src
+                src_path = r["from"]
+                src_dir = os.path.dirname(src_path) if os.path.isabs(src_path) else None
+                new_filename = os.path.basename(r["to"])
+                if src_dir:
+                    r["to"] = os.path.join(src_dir, new_filename)
+
+        from . import apply as apply_mod
+        plan = apply_mod.build_plan(approvals, project_root=out_dir)
+
+        # Determine operation from the dropdown
+        mode_str = self.output_mode.get()
+        if mode_str.startswith("copy"):
+            op = "copy"
+        elif mode_str.startswith("move"):
+            op = "move"
+        else:
+            op = "rename"
+
+        # Build preview text
+        approved_count = len(approvals.get("approved", []))
+        lines = [
+            f"Source: {approvals_path}",
+            f"Approved entries: {approved_count}",
+            f"Total file operations: {len(plan.ops)}",
+            f"Operation: {op} ({mode_str})",
+            "",
+        ]
+        if plan.collisions:
+            lines.append(f"⚠ {len(plan.collisions)} collisions detected (same target file from multiple sources)")
+            lines.append("Aborting — fix names in the review UI first.")
+            messagebox.showerror("Collisions detected", "\n".join(lines))
+            return
+        if plan.missing_sources:
+            lines.append(f"⚠ {len(plan.missing_sources)} source files not found:")
+            for o in plan.missing_sources[:5]:
+                lines.append(f"  {o.src}")
+            if len(plan.missing_sources) > 5:
+                lines.append(f"  ... and {len(plan.missing_sources)-5} more")
+            messagebox.showerror("Files missing", "\n".join(lines))
+            return
+
+        # Show first 20 ops as preview
+        lines.append(f"First {min(20, len(plan.ops))} operations:")
+        for o in plan.ops[:20]:
+            lines.append(f"  {os.path.basename(o.src)}  →  {os.path.basename(o.dst)}")
+        if len(plan.ops) > 20:
+            lines.append(f"  ... and {len(plan.ops) - 20} more")
+
+        msg = "\n".join(lines)
+        msg += f"\n\nReady to {op} {len(plan.ops)} files. Undo log will be saved in {out_dir}.\n\nProceed?"
+
+        if not messagebox.askyesno(f"Apply {len(plan.ops)} renames?", msg):
+            self._log("Apply cancelled by user.")
+            return
+
+        self.apply_btn.configure_state(False, text="Working…")
+        self._log(f"\n{'='*60}")
+        self._log(f"Applying {len(plan.ops)} {op} ops...")
+
+        def _work():
+            try:
+                ok, failed, undo_path = apply_mod.execute_plan(plan, undo_log_dir=out_dir, operation=op)
+                msg2 = f"✓ Renamed: {ok}\n✗ Failed: {failed}\n\nUndo log: {undo_path}"
+                if failed == 0:
+                    self.root.after(0, lambda: messagebox.showinfo("Done", msg2))
+                else:
+                    self.root.after(0, lambda: messagebox.showwarning("Done with errors", msg2))
+                self._log(msg2)
+            except Exception as ex:
+                self._log(f"✗ Apply failed: {ex}")
+                self.root.after(0, lambda: messagebox.showerror("Apply failed", str(ex)))
+            finally:
+                self.root.after(0, lambda: self.apply_btn.configure_state(True, text="③  Apply Renames"))
+
+        threading.Thread(target=_work, daemon=True).start()
 
 
 def main():
