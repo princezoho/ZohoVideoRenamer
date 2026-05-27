@@ -490,7 +490,7 @@ function zoomImage(src) { const m = document.getElementById('modal'); m.innerHTM
 function playVideo(rel) { const m = document.getElementById('modal'); m.innerHTML = `<video src="${rel}" controls autoplay loop></video>`; m.classList.add('show'); }
 function closeModal() { const m = document.getElementById('modal'); m.classList.remove('show'); m.innerHTML = ''; }
 
-document.getElementById('export-btn').onclick = () => {
+function buildApprovalsPayload() {
   const out = [];
   DATA.entries.forEach(e => {
     const s = state[e.id];
@@ -506,12 +506,56 @@ document.getElementById('export-btn').onclick = () => {
       flagged.push({ id: e.id, stub: e.stub, status: s.status, name: s.name || '' });
     }
   });
-  const blob = new Blob([JSON.stringify({approved: out, flagged: flagged, exported_at: new Date().toISOString()}, null, 2)], {type:'application/json'});
+  return {approved: out, flagged: flagged, exported_at: new Date().toISOString()};
+}
+
+document.getElementById('export-btn').onclick = async () => {
+  const payload = buildApprovalsPayload();
+  // If running inside pywebview, the "Export" button becomes "Approve &
+  // Rename All" and calls Python directly — no JSON file in Downloads,
+  // no app switching, no file picker.
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.apply_renames) {
+    if (payload.approved.length === 0) {
+      showToast('Approve at least one entry first.');
+      return;
+    }
+    if (!confirm(`Rename ${payload.approved.length} approved entries now? An undo log will be saved.`)) return;
+    document.getElementById('export-btn').textContent = "Renaming…";
+    document.getElementById('export-btn').disabled = true;
+    try {
+      const result = await window.pywebview.api.apply_renames(payload, "rename");
+      if (result.ok) {
+        showToast(`✓ Renamed ${result.succeeded} files (${result.failed} failed). Undo log saved.`);
+        alert(`Done!\n\nRenamed: ${result.succeeded}\nFailed: ${result.failed}\nUndo log: ${result.undo_log}`);
+      } else {
+        alert("Rename failed:\n\n" + (result.error || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Error: " + e);
+    } finally {
+      document.getElementById('export-btn').textContent = "Approve & Rename All";
+      document.getElementById('export-btn').disabled = false;
+    }
+    return;
+  }
+  // Fallback: browser-only mode (no pywebview) — download the JSON file
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = 'rename-approvals.json'; a.click();
-  showToast(`Exported ${out.length} approvals (${flagged.length} flagged)`);
+  showToast(`Exported ${payload.approved.length} approvals (${payload.flagged.length} flagged)`);
 };
+
+// If running inside pywebview, relabel the Export button to match its
+// new behavior (direct apply) and add a "Back to setup" button.
+if (window.pywebview) {
+  document.getElementById('export-btn').textContent = "Approve & Rename All";
+  const backBtn = document.createElement('button');
+  backBtn.textContent = "← Back to setup";
+  backBtn.style.cssText = "margin-top:8px;background:var(--panel);color:var(--text);width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;";
+  backBtn.onclick = () => window.pywebview.api.go_home();
+  document.getElementById('reset-btn').parentNode.appendChild(backBtn);
+}
 document.getElementById('reset-btn').onclick = () => {
   if (confirm('Wipe ALL decisions? This cannot be undone.')) { state = {}; saveState(); render(); showToast('All decisions cleared.'); }
 };

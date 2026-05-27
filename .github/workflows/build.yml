@@ -66,6 +66,8 @@ jobs:
             --collect-all anthropic \
             --collect-all openai \
             --collect-all imageio_ffmpeg \
+            --collect-all webview \
+            --collect-submodules webview \
             --hidden-import tkinter \
             --hidden-import tkinter.ttk \
             --hidden-import tkinter.filedialog \
@@ -93,6 +95,8 @@ jobs:
             --collect-all anthropic `
             --collect-all openai `
             --collect-all imageio_ffmpeg `
+            --collect-all webview `
+            --collect-submodules webview `
             --hidden-import tkinter `
             --hidden-import tkinter.ttk `
             --hidden-import tkinter.filedialog `

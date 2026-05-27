@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zoho-video-renamer"
-version = "0.1.9"
+version = "0.2.0"
 description = "Match videos to source stills, propose descriptive names (via AI or existing still names), and bulk-rename — with a browser review UI and full undo support."
 readme = "README.md"
 license = { text = "MIT" }
@@ -29,9 +29,12 @@ classifiers = [
 dependencies = [
     "Pillow>=9.0",
     # imageio-ffmpeg bundles a static ffmpeg binary so the desktop app works
-    # without requiring users to `brew install ffmpeg`. Tiny (~50 MB add to the
-    # bundle) but means scans Just Work on a clean machine.
+    # without requiring users to `brew install ffmpeg`.
     "imageio-ffmpeg>=0.4.9",
+    # pywebview gives us a native webview window on macOS (WKWebView), Windows
+    # (WebView2), and Linux (GTK). The whole UI — form + review — lives inside
+    # the app's own window. No external browser, no file-export dance.
+    "pywebview>=5.0",
 ]
 
 [project.optional-dependencies]
